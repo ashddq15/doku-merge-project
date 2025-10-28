@@ -1087,3 +1087,57 @@ def scheduler_seed():
         c.commit()
     return {"ok": True, "msg": "Dummy merchant inserted."}
 
+@app.post("/chat")
+def chat_interactive(req: dict):
+    msg = req.get("message", "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Message kosong")
+
+    logger.info(f"[MERGE Chat] {msg}")
+
+    # 1️⃣ ekstraksi parameter (simple NLP)
+    import re
+    cid = re.findall(r"clientid\s*(\d+)", msg, re.I)
+    channel = re.findall(r"(qris|va|cc|credit card|debit)", msg, re.I)
+    bulan = re.findall(r"(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)", msg, re.I)
+    cid = cid[0] if cid else None
+    channel = channel[0].upper() if channel else "QRIS"
+    bulan = bulan[0].capitalize() if bulan else None
+
+    if not cid:
+        return {"reply": "Boleh sebutkan client ID-nya?"}
+
+    # 2️⃣ prompt ke ChatGPT untuk generate SQL
+    if OpenAI is None or not os.getenv("OPENAI_API_KEY"):
+        sql = f"""
+        SELECT
+          COUNT(*) FILTER (WHERE status='SUCCESS')::float / COUNT(*) AS success_rate
+        FROM fact_tx
+        WHERE client_id={cid} AND channel='{channel}' 
+          AND date_trunc('month', paid_at)=date_trunc('month', '2025-08-01'::timestamp);
+        """
+    else:
+        prompt = f"""
+        Buatkan SQL PostgreSQL untuk menghitung success rate transaksi
+        client_id={cid} dengan channel {channel} pada bulan {bulan or 'tertentu'},
+        berdasarkan tabel fact_tx dengan kolom (client_id, channel, status, paid_at).
+        """
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        sql = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role":"user","content":prompt}]
+        ).choices[0].message.content.strip()
+
+    # 3️⃣ eksekusi SQL di DB
+    try:
+        con = conn(); cur = con.cursor()
+        cur.execute(sql)
+        row = cur.fetchone()
+        rate = row[0] if row else 0
+        cur.close(); con.close()
+        return {"reply": f"Hasil analisis MERGE menunjukkan success rate untuk client ID {cid} channel {channel} adalah {rate:.2%}. 🎯"}
+    except Exception as e:
+        logger.error(f"SQL gagal: {e}")
+        return {"reply": "Maaf, MERGE belum bisa memproses pertanyaan itu sekarang 😔"}
+
+

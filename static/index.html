@@ -216,9 +216,62 @@
       </thead>
       <tbody></tbody>
     </table>
+    <div id="merge-chat-btn" style="
+  position: fixed; bottom: 20px; right: 20px;
+  background: #1e3a8a; color: white;
+  border-radius: 50%; width: 55px; height: 55px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+">
+  💬
+</div>
+
+<!-- Chat Window -->
+<div id="merge-chat-window" style="
+  display: none; position: fixed; bottom: 90px; right: 20px;
+  width: 320px; height: 400px; background: white;
+  border-radius: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  overflow: hidden; flex-direction: column;
+">
+  <div style="background:#1e3a8a; color:white; padding:10px;">
+    <strong>MERGE AI</strong> 🧠
+  </div>
+  <div id="chat-body" style="flex:1; padding:10px; overflow-y:auto; font-size:14px;"></div>
+  <div style="display:flex; border-top:1px solid #ddd;">
+    <input id="chat-input" placeholder="Tanyakan ke Merge..." style="flex:1; border:none; padding:10px;">
+    <button id="chat-send" style="background:#1e3a8a; color:white; border:none; padding:10px 14px;">➤</button>
+  </div>
+</div>
   </div>
 
 <script>
+   const btn = document.getElementById('merge-chat-btn');
+  const chat = document.getElementById('merge-chat-window');
+  const input = document.getElementById('chat-input');
+  const body = document.getElementById('chat-body');
+  const send = document.getElementById('chat-send');
+
+  btn.onclick = () => chat.style.display = chat.style.display === 'none' ? 'flex' : 'none';
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    body.innerHTML += `<div><b>You:</b> ${text}</div>`;
+    input.value = '';
+    body.innerHTML += `<div><i>MERGE AI is thinking...</i></div>`;
+    body.scrollTop = body.scrollHeight;
+
+    const res = await fetch('/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text })
+    });
+    const data = await res.json();
+    body.innerHTML = body.innerHTML.replace('<i>MERGE AI is thinking...</i>', `<b>MERGE:</b> ${data.reply}`);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  send.onclick = sendMessage;
+  input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 const API = location.origin.replace(/\/app$/, ''); // base API
 let NEXT_HOLIDAY = null;
 
