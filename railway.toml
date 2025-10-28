@@ -1,10 +1,6 @@
-# railway.toml
 [build]
-builder = "NIXPACKS" # atau "DOCKERFILE" kalau pakai Dockerfile
+builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"
-
-[service]
 healthcheckPath = "/debug/health"
 healthcheckTimeout = 100
