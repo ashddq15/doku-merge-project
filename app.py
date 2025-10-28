@@ -714,9 +714,25 @@ def build_campaign_prompt(pair_detail: Dict[str, Any],
     top_h1 = _top_hours(h1); top_h2 = _top_hours(h2)
     season_name = season["season_name"] if season else "—"
     near = next_holiday()
-    near_line = "—"
-    if near:
+    trend_context = None
+    if near and near["days_left"] <= 30:
         near_line = f"{near['holi_name']} on {near['holi_date']} (D-{near['days_left']})"
+    else:
+        # fallback: cari tren viral via AI
+        try:
+            trend_prompt = "Apa tren viral di Indonesia bulan ini yang bisa digunakan untuk kampanye marketing digital?"
+            trend_resp = OpenAI(api_key=os.getenv("OPENAI_API_KEY")).chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": trend_prompt}],
+                max_tokens=60,
+                temperature=0.7,
+            )
+            trend_context = trend_resp.choices[0].message.content.strip()
+            near_line = f"Trending Topic: {trend_context}"
+        except Exception as e:
+            logger.warning(f"Trend fetch fallback: {e}")
+            near_line = "No nearby holiday or trend data."
+
 
     return f"""
 You are a marketing data strategist for a payments company (DOKU).
@@ -1058,3 +1074,16 @@ def merchant_geo_recs(mid: int, radius_km: float = 25.0, top: int = 5, alpha: fl
 # Static files (UI)
 # =========================
 app.mount("/app", StaticFiles(directory="static", html=True), name="app")
+
+@app.post("/scheduler/seed")
+def scheduler_seed():
+    with conn() as c, c.cursor() as cur:
+        cur.execute("""
+            INSERT INTO dim_merchant (merchant_id, name, city, latitude, longitude)
+            SELECT generate_series(2000,2005), 'Demo-' || generate_series(2000,2005), 'Jakarta', 
+                   6.20 + random()/10, 106.80 + random()/10
+            ON CONFLICT DO NOTHING;
+        """)
+        c.commit()
+    return {"ok": True, "msg": "Dummy merchant inserted."}
+
