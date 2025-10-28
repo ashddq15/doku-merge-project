@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, List, Tuple
 import math
 import traceback
 import datetime
+import re, calendar, datetime as dt
 
 import psycopg2
 import psycopg2.extras
@@ -76,6 +77,46 @@ app.add_middleware(
     allow_origins=["*"], allow_credentials=True,
     allow_methods=["*"], allow_headers=["*"],
 )
+
+
+
+
+BULAN_ID = {
+    "januari":1,"februari":2,"maret":3,"april":4,"mei":5,"juni":6,
+    "juli":7,"agustus":8,"september":9,"oktober":10,"november":11,"desember":12
+}
+CHANNEL_MAP = {"QRIS":"QRIS","VA":"VA","VIRTUAL ACCOUNT":"VA","CC":"CC","CREDIT CARD":"CC","DEBIT":"DEBIT"}
+
+def parse_params(msg: str):
+    msg_low = msg.lower()
+    # clientid
+    m = re.search(r'client\s*id\s*(\d+)|clientid\s*(\d+)', msg_low)
+    client_id = int(next(g for g in (m.group(1), m.group(2)) if g)) if m else None
+
+    # channel
+    ch = None
+    for k in CHANNEL_MAP:
+        if k.lower() in msg_low:
+            ch = CHANNEL_MAP[k]; break
+    ch = ch or "QRIS"
+
+    # bulan & tahun
+    bln = None
+    for nama, num in BULAN_ID.items():
+        if nama in msg_low: bln = num; break
+    today = dt.date.today()
+    tahun = today.year
+    if "tahun " in msg_low:
+        mt = re.search(r'tahun\s*(\d{4})', msg_low)
+        if mt: tahun = int(mt.group(1))
+    if bln is None:
+        bln = today.month  # default: bulan ini
+
+    # rentang tanggal bulan tsb
+    start = dt.date(tahun, bln, 1)
+    last_day = calendar.monthrange(tahun, bln)[1]
+    end = dt.date(tahun, bln, last_day)
+    return client_id, ch, start, end
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -1089,55 +1130,48 @@ def scheduler_seed():
 
 @app.post("/chat")
 def chat_interactive(req: dict):
-    msg = req.get("message", "").strip()
+    msg = (req.get("message") or "").strip()
     if not msg:
         raise HTTPException(status_code=400, detail="Message kosong")
 
-    logger.info(f"[MERGE Chat] {msg}")
+    client_id, channel, d1, d2 = parse_params(msg)
+    if not client_id:
+        return {"reply": "Boleh sebutkan **client id**-nya?"}
 
-    # 1️⃣ ekstraksi parameter (simple NLP)
-    import re
-    cid = re.findall(r"clientid\s*(\d+)", msg, re.I)
-    channel = re.findall(r"(qris|va|cc|credit card|debit)", msg, re.I)
-    bulan = re.findall(r"(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)", msg, re.I)
-    cid = cid[0] if cid else None
-    channel = channel[0].upper() if channel else "QRIS"
-    bulan = bulan[0].capitalize() if bulan else None
-
-    if not cid:
-        return {"reply": "Boleh sebutkan client ID-nya?"}
-
-    # 2️⃣ prompt ke ChatGPT untuk generate SQL
-    if OpenAI is None or not os.getenv("OPENAI_API_KEY"):
-        sql = f"""
-        SELECT
-          COUNT(*) FILTER (WHERE status='SUCCESS')::float / COUNT(*) AS success_rate
+    # SQL deterministik + aman (hanya SELECT)
+    sql = """
+      WITH tx AS (
+        SELECT status
         FROM fact_tx
-        WHERE client_id={cid} AND channel='{channel}' 
-          AND date_trunc('month', paid_at)=date_trunc('month', '2025-08-01'::timestamp);
-        """
-    else:
-        prompt = f"""
-        Buatkan SQL PostgreSQL untuk menghitung success rate transaksi
-        client_id={cid} dengan channel {channel} pada bulan {bulan or 'tertentu'},
-        berdasarkan tabel fact_tx dengan kolom (client_id, channel, status, paid_at).
-        """
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        sql = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            messages=[{"role":"user","content":prompt}]
-        ).choices[0].message.content.strip()
-
-    # 3️⃣ eksekusi SQL di DB
+        WHERE client_id = %s
+          AND channel = %s
+          AND paid_at::date BETWEEN %s AND %s
+      )
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE UPPER(status) = 'SUCCESS') AS succ,
+        CASE WHEN COUNT(*)=0 THEN 0
+             ELSE COUNT(*) FILTER (WHERE UPPER(status)='SUCCESS')::float / COUNT(*)
+        END AS success_rate
+      FROM tx;
+    """
     try:
-        con = conn(); cur = con.cursor()
-        cur.execute(sql)
-        row = cur.fetchone()
-        rate = row[0] if row else 0
-        cur.close(); con.close()
-        return {"reply": f"Hasil analisis MERGE menunjukkan success rate untuk client ID {cid} channel {channel} adalah {rate:.2%}. 🎯"}
+        with conn() as c:
+            with c.cursor() as cur:
+                # batasin durasi eksekusi query supaya UI ga ngegantung
+                cur.execute("SET LOCAL statement_timeout = 5000")  # 5s
+                cur.execute(sql, (client_id, channel, d1, d2))
+                total, succ, rate = cur.fetchone()
     except Exception as e:
-        logger.error(f"SQL gagal: {e}")
-        return {"reply": "Maaf, MERGE belum bisa memproses pertanyaan itu sekarang 😔"}
+        logger.exception("chat SQL error")
+        return {"reply": "Maaf, terjadi kendala saat membaca data SR."}
+
+    bln_label = d1.strftime("%B %Y")
+    if total == 0:
+        return {"reply": f"Tidak ada transaksi **{channel}** untuk client **{client_id}** pada **{bln_label}**."}
+
+    rate_pct = f"{rate*100:.2f}%"
+    return {"reply": f"Hasil MERGE 🧠\n\n• Client **{client_id}**\n• Channel **{channel}**\n• Periode **{bln_label}**\n• Success Rate: **{rate_pct}** ({succ}/{total}) 🎯"}
+
 
 
