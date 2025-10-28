@@ -15,18 +15,6 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . /app
 
-# (opsional) Healthcheck lokal — boleh dibiarkan
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD python - <<'PY' || exit 1
-import os, socket
-port = int(os.environ.get("PORT", "8000"))
-s = socket.socket(); s.settimeout(2)
-try:
-    s.connect(("127.0.0.1", port))
-    s.close()
-except Exception:
-    raise SystemExit(1)
-PY
 
 # Default fallback port (Railway akan overwrite PORT)
 ENV PORT=8000
