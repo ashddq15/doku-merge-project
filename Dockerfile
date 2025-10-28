@@ -5,24 +5,31 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# app
 WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# copy src
 COPY . /app
 
-# healthcheck 
+# (opsional) Healthcheck lokal — boleh dibiarkan
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD python -c "import socket; s=socket.socket(); s.connect(('127.0.0.1',8000)); s.close()"
+  CMD python - <<'PY' || exit 1
+import os, socket
+port = int(os.environ.get("PORT", "8000"))
+s = socket.socket(); s.settimeout(2)
+try:
+    s.connect(("127.0.0.1", port))
+    s.close()
+except Exception:
+    raise SystemExit(1)
+PY
 
+# Default fallback port (Railway akan overwrite PORT)
 ENV PORT=8000
-
 EXPOSE 8000
-CMD sh -c "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"
+
+CMD ["python", "-c", "import os, uvicorn; uvicorn.run('app:app', host='0.0.0.0', port=int(os.environ.get('PORT','8000')))"]
