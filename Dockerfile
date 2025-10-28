@@ -25,5 +25,4 @@ HEALTHCHECK --interval=30s --timeout=3s \
 ENV PORT=8000
 
 EXPOSE 8000
-# Gunakan gunicorn/uvicorn untuk menjalankan FastAPI
-CMD exec uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-lc", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
