@@ -1028,20 +1028,126 @@ def auto_insight_generate(limit:int=5):
             )
     return {"ok": True, "count": len(pairs)}
 
+from psycopg2.extras import RealDictCursor
+
+def _rule_based_pair_insight(name1, name2, jaccard, season):
+    # fallback kalau OPENAI_API_KEY tidak di-set
+    pct = round(100 * (jaccard or 0), 2)
+    return (f"Season: {season}\n"
+            f"Pair: {name1} × {name2}\n"
+            f"Overlap (Jaccard): {pct}%\n"
+            f"Ide kampanye: bundling / cross-promo antara {name1} dan {name2} "
+            f"untuk audience yang tumpang tindih, fokus retargeting pengguna "
+            f"yang pernah transaksi di salah satunya dalam 30 hari terakhir.")
+
+def _backfill_ai_insights(cur, season="Next month", limit_pairs=6):
+    """
+    Hitung cepat pasangan merchant dengan Jaccard tertinggi 30 hari terakhir
+    lalu tulis ke ai_insight_log jika belum ada data. Commit dilakukan di caller.
+    """
+    cur.execute("""
+        WITH u AS (
+            SELECT DISTINCT merchant_id, user_hash
+            FROM fact_tx
+            WHERE paid_at >= NOW() - INTERVAL '30 days'
+        ),
+        d AS (
+            SELECT merchant_id, COUNT(*) AS cnt
+            FROM u GROUP BY merchant_id
+        ),
+        p AS (
+            SELECT a.merchant_id AS m1, b.merchant_id AS m2, COUNT(*) AS overlap
+            FROM u a
+            JOIN u b ON a.user_hash = b.user_hash AND a.merchant_id < b.merchant_id
+            GROUP BY a.merchant_id, b.merchant_id
+        ),
+        s AS (
+            SELECT p.m1, p.m2,
+                   p.overlap::float / NULLIF(d1.cnt + d2.cnt - p.overlap, 0) AS jaccard
+            FROM p
+            JOIN d d1 ON d1.merchant_id = p.m1
+            JOIN d d2 ON d2.merchant_id = p.m2
+            WHERE (d1.cnt >= 5 AND d2.cnt >= 5)    -- filter noise
+        )
+        SELECT s.m1, s.m2, s.jaccard,
+               dm1.name AS m1_name, dm2.name AS m2_name
+        FROM s
+        JOIN dim_merchant dm1 ON dm1.merchant_id = s.m1
+        JOIN dim_merchant dm2 ON dm2.merchant_id = s.m2
+        ORDER BY s.jaccard DESC NULLS LAST
+        LIMIT %s
+    """, (limit_pairs,))
+    pairs = cur.fetchall()
+    if not pairs:
+        return 0
+
+    # tulis ke log; pakai LLM kalau ada, kalau tidak pakai rule-based
+    for row in pairs:
+        m1, m2, jacc = row["m1"], row["m2"], row["jaccard"] or 0.0
+        n1, n2 = row["m1_name"], row["m2_name"]
+        try:
+            text = call_llm(
+                f"You are a marketing analyst. "
+                f"Given two merchants '{n1}' and '{n2}' with audience overlap "
+                f"(Jaccard) = {jacc:.4f} in the last 30 days, craft a concise, actionable "
+                f"cross-merchant campaign idea for season '{season}' in Indonesian. "
+                f"Use 3–5 sentences."
+            )
+        except Exception:
+            text = _rule_based_pair_insight(n1, n2, jacc, season)
+
+        cur.execute("""
+            INSERT INTO ai_insight_log (m1, m2, season, insight, generated_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (m1, m2, season, text))
+    return len(pairs)
+
+def ensure_ai_log():
+    with conn() as c, c.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("SELECT COUNT(*) AS n FROM ai_insight_log")
+        n = int(cur.fetchone()["n"])
+        if n == 0:
+            _backfill_ai_insights(cur, season="Next month", limit_pairs=6)
+        c.commit()
+
 @app.get("/auto_insights")
 def auto_insights():
+    # pastikan ada data
     ensure_ai_log()
-    with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+
+    with conn() as c, c.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("""
-            SELECT dm1.name AS m1_name, dm2.name AS m2_name, a.season, a.insight, a.generated_at
+            SELECT dm1.name AS m1_name,
+                   dm2.name AS m2_name,
+                   a.season,
+                   a.insight,
+                   a.generated_at
             FROM ai_insight_log a
-            JOIN dim_merchant dm1 ON dm1.merchant_id=a.m1
-            JOIN dim_merchant dm2 ON dm2.merchant_id=a.m2
+            JOIN dim_merchant dm1 ON dm1.merchant_id = a.m1
+            JOIN dim_merchant dm2 ON dm2.merchant_id = a.m2
             ORDER BY a.generated_at DESC
             LIMIT 20
         """)
         rows = cur.fetchall()
+
+        # kalau tetap kosong (mis. tidak ada transaksi 30 hari terakhir), coba backfill baseline 60 hari
+        if not rows:
+            _backfill_ai_insights(cur, season="Baseline 60d", limit_pairs=4)
+            c.commit()
+            cur.execute("""
+                SELECT dm1.name AS m1_name,
+                       dm2.name AS m2_name,
+                       a.season, a.insight, a.generated_at
+                FROM ai_insight_log a
+                JOIN dim_merchant dm1 ON dm1.merchant_id = a.m1
+                JOIN dim_merchant dm2 ON dm2.merchant_id = a.m2
+                ORDER BY a.generated_at DESC
+                LIMIT 20
+            """)
+            rows = cur.fetchall()
+
     return rows
+
 
 # =========================
 # Metrics (simple)
