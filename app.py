@@ -1527,7 +1527,7 @@ def _extract_channel_loose(text: str | None) -> str | None:
     for canon, aliases in CHANNEL_ALIASES.items():
         if cand == canon.lower() or cand in aliases:
             return
-logger.info("chat sid=%s intent=%s", sid, intent)
+
 # ==== simple in-memory session context (TTL optional) ====
 
 
