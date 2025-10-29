@@ -1495,14 +1495,6 @@ def _get_sid(payload: dict) -> str:
     sid = (payload.get("sid") or "").strip()
     return sid or "default"
 
-def _norm_channel_word(s: str | None) -> str | None:
-    if not s: return None
-    s = s.strip().lower()
-    if s in ("qris","qr","qr code"): return "QRIS"
-    if s in ("va","virtual account"): return "VA"
-    if s in ("cc","card","credit card","kartu kredit"): return "CC"
-    return s.upper()
-
 def _mk_choices(labels: list[str]) -> list[dict]:
     # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
@@ -1510,6 +1502,7 @@ def _mk_choices(labels: list[str]) -> list[dict]:
 def _norm_channel_word(s: str | None) -> str | None:
     if not s: return None
     s = s.strip().lower()
+    if s.startswith("channel "): s = s[8:]
     if s in ("qris","qr","qr code"): return "QRIS"
     if s in ("va","virtual account"): return "VA"
     if s in ("cc","card","credit card","kartu kredit"): return "CC"
@@ -1537,6 +1530,7 @@ def _extract_channel_loose(text: str | None) -> str | None:
     for canon, aliases in CHANNEL_ALIASES.items():
         if cand == canon.lower() or cand in aliases:
             return
+logger.info("chat sid=%s intent=%s", sid, intent)
 
 @app.post("/chat")
 def chat(payload: Dict[str, Any] = Body(...)):
@@ -1595,6 +1589,7 @@ def chat(payload: Dict[str, Any] = Body(...)):
 
             # simpan konteks supaya langkah berikutnya bisa pakai
             SESSION[sid] = {"clientid": cid, "year": year, "month": month}
+            SESSION["default"] = SESSION[sid].copy()
 
             # ---- STEP 1: belum ada channel → header + tombol pilihan real
             if channel is None:
