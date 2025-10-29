@@ -1488,91 +1488,140 @@ def _channel_suggestions(all_channels:List[Dict[str,Any]])->List[str]:
     if not labels: labels = ["channel QRIS","channel VA","channel CC"]
     return labels
 
+# ==== simple in-memory session context (TTL optional) ====
+SESSION: dict[str, dict] = {}
+
+def _get_sid(payload: dict) -> str:
+    # frontend kirim "sid" (random uuid) per user/browser
+    return (payload.get("sid") or "default").strip()
+
+def _norm_channel_word(s: str | None) -> str | None:
+    if not s: return None
+    s = s.strip().lower()
+    if s in ("qris","qr","qr code"): return "QRIS"
+    if s in ("va","virtual account"): return "VA"
+    if s in ("cc","card","credit card","kartu kredit"): return "CC"
+    return s.upper()
+
+def _mk_choices(labels: list[str]) -> list[dict]:
+    # tombol yang menempelkan teks ke input saat diklik
+    return [{"label": lab, "text": lab} for lab in labels]
+
 @app.post("/chat")
 def chat(payload: Dict[str, Any] = Body(...)):
     """
-    Interaktif 2-step:
-      - Tanpa channel -> kirim ringkasan singkat + opsi channel (suggestions).
-      - Dengan channel -> kirim detail + insight AI.
+    Mode 2-step interaktif + session:
+      - Step 1 (tanpa channel): ringkasan + tombol channel.
+      - Step 2 (pilih channel): detail + insight.
     """
     try:
+        sid = _get_sid(payload)
         q = (payload.get("text") or "").strip()
         if not q:
-            return {"reply":"(maaf, pesannya kosong)","suggestions":[]}
+            return {"reply":"(pesan kosong)", "suggestions":[], "actions":[], "choices":[]}
 
+        # ---- parse intent utama
         intent = _parse_intent(q)
-        cid = intent["clientid"]
+        cid    = intent["clientid"]
+        year, month = intent["year"], intent["month"]
+        channel = _norm_channel_word(intent["channel"])
+        compare = intent["compare"]
+
+        # ---- jika user hanya ketik "qris"/"va"/"cc", ambil dari session
+        if not cid and not year and not month and channel:
+            ctx = SESSION.get(sid) or {}
+            if ctx.get("clientid"):
+                cid   = ctx["clientid"]
+                year  = ctx["year"]
+                month = ctx["month"]
+            else:
+                return {
+                    "reply": "Aku butuh *clientid* dulu sebelum memilih channel. Contoh: `clientid 1001`.",
+                    "suggestions": ["clientid 1001", "clientid 1002 Oktober 2025"],
+                    "actions": ["clientid 1001", "clientid 1002 Oktober 2025"],
+                    "choices": _mk_choices(["clientid 1001","clientid 1002 Oktober 2025"])
+                }
+
+        # ---- wajib punya clientid
         if not cid:
             return {
                 "reply":"Aku tidak menemukan *clientid*. Contoh: `clientid 1001`.",
-                "suggestions":["clientid 1001 bulan ini","clientid 1002 oktober"]
+                "suggestions":["clientid 1001 bulan ini","clientid 1002 Oktober 2025"],
+                "actions":["clientid 1001 bulan ini","clientid 1002 Oktober 2025"],
+                "choices": _mk_choices(["clientid 1001 bulan ini","clientid 1002 Oktober 2025"])
             }
 
-        year, month = intent["year"], intent["month"]
-        channel = intent["channel"]
-        compare = intent["compare"]
+        # default periode kalau user tidak sebut
+        if not year or not month:
+            today = date.today()
+            year, month = today.year, today.month
 
         with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
-            cur_s = _fetch_month_summary(cur, cid, year, month, channel=channel)
+            current = _fetch_month_summary(cur, cid, year, month, channel=channel)
 
-            # === STEP 1: jika user BELUM menyebut channel ===
+            # simpan konteks supaya langkah berikutnya bisa pakai
+            SESSION[sid] = {"clientid": cid, "year": year, "month": month}
+
+            # ---- STEP 1: belum ada channel → header + tombol pilihan real
             if channel is None:
-                if cur_s["totals"]["total_tx"] == 0:
-                    # tidak ada data bulan tsb
-                    reply = (
-                        f"**{cur_s['merchant']}** • Periode **{calendar.month_name[cur_s['month']]} {cur_s['year']}**\n"
-                        f"Tidak ada data transaksi pada periode ini.\n"
-                        f"Silakan pilih bulan lain."
-                    )
-                    return {
-                        "reply": reply,
-                        "suggestions": ["bulan ini", "bulan kemarin", "Oktober 2025", "September 2025"]
-                    }
-
-                # ada data -> tampilkan header singkat + pilihan channel
-                # rangkum SR total, lalu minta user memilih channel
-                t = cur_s["totals"]
+                t = current["totals"]
                 header = (
-                    f"**{cur_s['merchant']}** • Periode **{calendar.month_name[cur_s['month']]} {cur_s['year']}**\n"
+                    f"**{current['merchant']}** • Periode **"
+                    f"{calendar.month_name[current['month']]} {current['year']}**\n"
                     f"Total: **{t['total_tx']}** trx • SR agregat: **{t['success_rate_pct']:.2f}%** • "
                     f"GMV: **Rp {t['gmv']:,}**\n\n"
                     f"Untuk channel mana yang mau dicek?"
                 )
 
-                # suggestions dibangun dari data real; fallback default kalau kosong
-                sugg = _channel_suggestions(cur_s["by_channel"])
-                # tambahkan aksi umum
-                sugg += ["bandingkan dengan bulan sebelumnya", "bulan ini", "bulan kemarin"]
+                chans = [r["channel"] for r in current["by_channel"] if r["channel"]]
+                if not chans:
+                    return {
+                        "reply": header + "\n(Tidak ada pembagian channel pada periode ini.)",
+                        "suggestions":["bandingkan dengan bulan sebelumnya","bulan kemarin"],
+                        "actions":["bandingkan dengan bulan sebelumnya","bulan kemarin"],
+                        "choices": _mk_choices(["bandingkan dengan bulan sebelumnya","bulan kemarin"])
+                    }
 
-                return {"reply": header, "suggestions": sugg}
+                chan_labels = [f"channel {c}" for c in chans]  # contoh: "channel QRIS"
+                # tambahkan opsi umum
+                chan_labels += ["bandingkan dengan bulan sebelumnya","bulan ini","bulan kemarin"]
 
-            # === STEP 2: user SUDAH menyebut channel -> detail + AI ===
-            prev_s = None
+                return {
+                    "reply": header,
+                    "suggestions": chan_labels,
+                    "actions": chan_labels,
+                    "choices": _mk_choices(chan_labels)
+                }
+
+            # ---- STEP 2: sudah ada channel → detail + AI
+            prev = None
             if compare:
                 py, pm = _prev_month(year, month)
-                prev_s = _fetch_month_summary(cur, cid, py, pm, channel=channel)
+                prev = _fetch_month_summary(cur, cid, py, pm, channel=channel)
 
-        md_head = _md_stat_block(cur_s)
-        ai_md = _ai_summary({"current": cur_s, "previous": prev_s})
-
-        # suggestions lanjutan: ganti channel / bandingkan / detail harian
-        next_sugg: List[str] = []
-        # tawarkan channel lain yang tersedia selain yang dipilih
-        other_channels = [r["channel"] for r in cur_s["by_channel"] if r["channel"] and r["channel"] != channel]
-        if other_channels:
-            next_sugg += [f"channel {c}" for c in other_channels]
-        # aksi umum
-        next_sugg += ["bandingkan dengan bulan sebelumnya", "lihat detail by day", "bulan ini", "bulan kemarin"]
-
+        md_head = _md_stat_block(current)
+        ai_md = _ai_summary({"current": current, "previous": prev})
         reply = f"{md_head}\n\n{ai_md}"
-        return {"reply": reply, "suggestions": next_sugg}
+
+        # tombol lanjutan
+        other = [r["channel"] for r in current["by_channel"] if r["channel"] and r["channel"] != channel]
+        next_labels = [f"channel {c}" for c in other] + \
+                      ["bandingkan dengan bulan sebelumnya","lihat detail by day","bulan ini","bulan kemarin"]
+
+        return {
+            "reply": reply,
+            "suggestions": next_labels,
+            "actions": next_labels,
+            "choices": _mk_choices(next_labels)
+        }
 
     except Exception as e:
         logger.exception("chat handler failed")
         return {
             "reply": f"Terjadi error di sisi server: **{type(e).__name__}**. Coba lagi ya.",
-            "suggestions":[]
+            "suggestions":[], "actions":[], "choices":[]
         }
+
 
 # ====== end /chat ======
 
