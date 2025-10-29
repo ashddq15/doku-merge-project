@@ -1526,6 +1526,25 @@ def _mk_choices(labels: list[str]) -> list[dict]:
     # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
 
+
+def _extract_channel_loose(text: str | None) -> str | None:
+    """
+    Tangkap channel dari frasa pendek:
+      - "channel qris", "qris", "va", "cc", "kartu kredit", dst.
+    Return: "QRIS" | "VA" | "CC" | None
+    """
+    if not text:
+        return None
+    t = text.strip().lower()
+
+    # pola "channel <xxx>"
+    m = re.search(r"\bchannel\s+([a-zA-Z ]+)\b", t)
+    cand = (m.group(1) if m else t).strip()
+
+    for canon, aliases in CHANNEL_ALIASES.items():
+        if cand == canon.lower() or cand in aliases:
+            return
+
 @app.post("/chat")
 def chat(payload: Dict[str, Any] = Body(...)):
     """
@@ -1543,7 +1562,9 @@ def chat(payload: Dict[str, Any] = Body(...)):
         intent = _parse_intent(q)
         cid    = intent["clientid"]
         year, month = intent["year"], intent["month"]
-        channel = _norm_channel_word(intent["channel"])
+        channel = intent.get("channel")
+        channel = (_norm_channel_word(channel)
+           if channel else _extract_channel_loose(q))
         compare = intent["compare"]
 
         # ---- jika user hanya ketik "qris"/"va"/"cc", ambil dari session
