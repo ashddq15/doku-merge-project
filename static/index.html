@@ -316,6 +316,15 @@ function addHints(hints) {
 
   // Hindari double-call saat user spam klik/enter
   let inflight = false;
+function getMergeSid() {
+    const k = 'merge_sid';
+    let v = localStorage.getItem(k);
+    if (!v) {
+      v = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random();
+      localStorage.setItem(k, v);
+    }
+    return v;
+  }
 
   async function ask(q) {
     if (inflight) return;
@@ -328,7 +337,7 @@ function addHints(hints) {
       const r = await fetch('/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ sid: MERGE_SID, text: q })
+        body: JSON.stringify({ sid: getMergeSid(), text: q })
       });
       const data = await r.json();
 
@@ -336,17 +345,36 @@ function addHints(hints) {
       addMsg(data.reply || '(tanpa balasan)', 'bot');
 
       // Normalisasi hints/saran tombol dari server
-      const hints =
-        data.hints
-        || data.suggestions
-        || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
-      addHints(hints || []);
+      // const hints =
+      //   data.hints
+      //   || data.suggestions
+      //   || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
+      // addHints(hints || []);
+       addHints(data.choices || data.suggestions || []);
     } catch (e) {
       typing.remove();
       addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
     } finally {
       inflight = false;
     }
+  }
+  function addHints(labels) {
+    const wrap = document.getElementById('hint-bar') || makeHintBar();
+    wrap.innerHTML = '';
+    (labels || []).forEach(lab => {
+      const b = document.createElement('button');
+      b.className = 'merge-chip';
+      b.textContent = lab;               // contoh: "channel QRIS"
+      b.onclick = () => ask(lab);        // <<< kirim persis teks chip
+      wrap.appendChild(b);
+    });
+  }
+  function makeHintBar(){
+    const el = document.createElement('div');
+    el.id = 'hint-bar';
+    el.style.margin = '8px 0 0';
+    document.getElementById('chat-body').appendChild(el);
+    return el;
   }
 
   // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
