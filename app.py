@@ -1279,6 +1279,7 @@ CHANNEL_ALIASES = {
     "VA":["va","virtual account","virtualaccount"],
     "CC":["cc","credit card","kartu kredit","creditcard"],
 }
+SUCCESS_STATUSES = ('SUCCESS', 'SALE', 'OK') 
 
 def _prev_month(y: int, m: int) -> tuple[int, int]:
     d = date(y, m, 1) - timedelta(days=1)
