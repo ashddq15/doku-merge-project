@@ -12,6 +12,9 @@ import re, calendar, datetime as dt
 import psycopg2
 import psycopg2.extras
 from psycopg2.extras import DictCursor
+import pytz
+import re, calendar
+from datetime import datetime, date, timedelta
 
 from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -1277,9 +1280,31 @@ CHANNEL_ALIASES = {
     "CC":["cc","credit card","kartu kredit","creditcard"],
 }
 
-def _prev_month(year:int, month:int)->Tuple[int,int]:
-    if month==1: return (year-1,12)
-    return (year, month-1)
+def _prev_month(y: int, m: int) -> tuple[int, int]:
+    d = date(y, m, 1) - timedelta(days=1)
+    return d.year, d.month
+
+def _parse_quick_action(txt: str) -> dict:
+    """
+    Baca teks dari tombol seperti:
+      - 'lihat detail by day clientid 1001'
+      - 'bulan ini clientid 1001'
+      - 'bulan kemarin clientid 1001'
+      - 'bandingkan dengan bulan sebelumnya clientid 1001'
+    """
+    s = (txt or "").strip().lower()
+    m = re.search(r'clientid\s+(\d+)', s)
+    cid = int(m.group(1)) if m else None
+
+    if 'lihat detail by day' in s:
+        return {'action': 'detail_day', 'clientid': cid}
+    if 'bulan ini' in s:
+        return {'action': 'this_month', 'clientid': cid}
+    if 'bulan kemarin' in s:
+        return {'action': 'last_month', 'clientid': cid}
+    if 'bandingkan dengan bulan sebelumnya' in s:
+        return {'action': 'compare_prev', 'clientid': cid}
+    return {}
 
 def _parse_intent(txt:str) -> Dict[str,Any]:
     t = txt.lower().strip()
@@ -1529,6 +1554,61 @@ def _extract_channel_loose(text: str | None) -> str | None:
             return
 
 # ==== simple in-memory session context (TTL optional) ====
+def _fetch_today_summary(cur, merchant_id: int, tzname: str = "Asia/Jakarta") -> dict | None:
+    tz = pytz.timezone(tzname)
+    d0 = datetime.now(tz).date()
+    cur.execute("""
+        WITH base AS (
+          SELECT status, amount
+          FROM fact_tx
+          WHERE merchant_id = %s
+            AND paid_at::date = %s
+        )
+        SELECT
+          COUNT(*)                      AS total_tx,
+          COUNT(*) FILTER (WHERE status = ANY(%s)) AS success_tx,
+          COALESCE(SUM(amount),0)       AS gmv
+        FROM base
+    """, (merchant_id, d0, list(SUCCESS_STATUSES)))
+    row = cur.fetchone()
+    if not row or row['total_tx'] == 0:
+        return None
+
+    sr = (row['success_tx'] / row['total_tx']) * 100 if row['total_tx'] else 0.0
+    # ambil nama merchant
+    cur.execute("SELECT name FROM dim_merchant WHERE merchant_id=%s", (merchant_id,))
+    m = cur.fetchone()
+    merchant = m['name'] if m else f"clientid {merchant_id}"
+    return {
+        "merchant": merchant,
+        "date": d0,
+        "total_tx": row['total_tx'],
+        "success_tx": row['success_tx'],
+        "success_rate_pct": sr,
+        "gmv": row['gmv']
+    }
+
+def _md_today_block(t: dict) -> str:
+    return (
+        f"**{t['merchant']} — Hari ini {t['date'].strftime('%d %b %Y')}**\n"
+        f"Total: **{t['total_tx']}** trx • "
+        f"Success: **{t['success_rate_pct']:.2f}%** ({t['success_tx']}/{t['total_tx']}) • "
+        f"GMV: **Rp {t['gmv']:,}**"
+    )
+
+def _md_compare_block(cur: dict, prev: dict) -> str:
+    if not prev or prev['totals']['total_tx'] == 0:
+        return "_Tidak ada data sebelumnya untuk dibandingkan._"
+    a = cur['totals']; b = prev['totals']
+    da = a['success_rate_pct'] - b['success_rate_pct']
+    dg = a['gmv'] - b['gmv']
+    sign = "▲" if da >= 0 else "▼"
+    return (
+        f"**Perbandingan dengan bulan sebelumnya**\n"
+        f"SR: **{a['success_rate_pct']:.2f}%** vs **{b['success_rate_pct']:.2f}%** ({sign} {abs(da):.2f} pp)\n"
+        f"GMV: **Rp {a['gmv']:,}** vs **Rp {b['gmv']:,}** ({'+' if dg>=0 else '-'}Rp {abs(dg):,})"
+    )
+
 
 
 @app.post("/chat")
@@ -1543,6 +1623,87 @@ def chat(payload: Dict[str, Any] = Body(...)):
         q = (payload.get("text") or "").strip()
         if not q:
             return {"reply": "(pesan kosong)", "suggestions": [], "actions": [], "choices": []}
+
+        # --- Quick actions dari tombol ---
+        qa = _parse_quick_action(q)
+        if qa.get('action'):
+            cid = qa.get('clientid') or (SESSION.get(sid) or {}).get('clientid')
+            if not cid:
+                return {
+                    "reply": "Aku butuh *clientid* dulu. Contoh: `clientid 1001`.",
+                    "suggestions": [ "clientid 1001", "clientid 1002 Oktober 2025" ],
+                    "actions": [ "clientid 1001", "clientid 1002 Oktober 2025" ],
+                    "choices": _mk_choices([ "clientid 1001", "clientid 1002 Oktober 2025" ])
+                }
+
+            # tentukan periode default dari session (atau bulan ini)
+            ctx = SESSION.get(sid) or {}
+            today = date.today()
+            year  = ctx.get("year", today.year)
+            month = ctx.get("month", today.month)
+
+            with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
+                if qa['action'] == 'detail_day':
+                    t = _fetch_today_summary(cur, cid)
+                    if not t:
+                        return {
+                            "reply": f"Tidak ada transaksi *hari ini* untuk clientid **{cid}**.",
+                            "suggestions": [f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"],
+                            "actions": [f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"],
+                            "choices": _mk_choices([f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"])
+                        }
+                    return {
+                        "reply": _md_today_block(t),
+                        "suggestions": [f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"],
+                        "actions": [f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"],
+                        "choices": _mk_choices([f"bulan ini clientid {cid}", f"bulan kemarin clientid {cid}"])
+                    }
+
+                if qa['action'] == 'last_month':
+                    year, month = _prev_month(year, month)
+
+                # this_month: pakai (year, month) yang sudah ada
+
+                if qa['action'] in ('this_month', 'last_month'):
+                    current = _fetch_month_summary(cur, cid, year, month, channel=None)
+                    SESSION[sid] = {"clientid": cid, "year": year, "month": month}
+                    t = current["totals"]
+                    if t['total_tx'] == 0:
+                        return {
+                            "reply": f"Transaksi untuk **{calendar.month_name[month]} {year}** pada clientid **{cid}** belum ada.",
+                            "suggestions": [f"bulan kemarin clientid {cid}", f"lihat detail by day clientid {cid}"],
+                            "actions": [f"bulan kemarin clientid {cid}", f"lihat detail by day clientid {cid}"],
+                            "choices": _mk_choices([f"bulan kemarin clientid {cid}", f"lihat detail by day clientid {cid}"])
+                        }
+                    header = (
+                        f"**{current['merchant']}** • Periode **{calendar.month_name[current['month']]} {current['year']}**\n"
+                        f"Total: **{t['total_tx']}** trx • SR agregat: **{t['success_rate_pct']:.2f}%** • GMV: **Rp {t['gmv']:,}**\n\n"
+                        f"Untuk channel mana yang mau dicek?"
+                    )
+                    chans = [r["channel"] for r in current["by_channel"] if r["channel"]]
+                    chan_labels = [f"payment channel {c} clientid {cid}" for c in chans] + [
+                        f"bandingkan dengan bulan sebelumnya clientid {cid}",
+                        f"lihat detail by day clientid {cid}",
+                        f"bulan ini clientid {cid}",
+                        f"bulan kemarin clientid {cid}",
+                    ]
+                    return {"reply": header, "suggestions": chan_labels, "actions": chan_labels, "choices": _mk_choices(chan_labels)}
+
+                if qa['action'] == 'compare_prev':
+                    current = _fetch_month_summary(cur, cid, year, month, channel=None)
+                    py, pm = _prev_month(year, month)
+                    prev = _fetch_month_summary(cur, cid, py, pm, channel=None)
+                    SESSION[sid] = {"clientid": cid, "year": year, "month": month}
+                    reply = _md_stat_block(current) + "\n\n" + _md_compare_block(current, prev)
+                    next_labels = [
+                        f"payment channel {r['channel']} clientid {cid}"
+                        for r in current["by_channel"] if r["channel"]
+                    ] + [
+                        f"lihat detail by day clientid {cid}",
+                        f"bulan ini clientid {cid}",
+                        f"bulan kemarin clientid {cid}",
+                    ]
+                    return {"reply": reply, "suggestions": next_labels, "actions": next_labels, "choices": _mk_choices(next_labels)}
 
         # parse intent utama
         intent = _parse_intent(q)
@@ -1610,7 +1771,12 @@ def chat(payload: Dict[str, Any] = Body(...)):
                 # tombol channel: “payment channel QRIS clientid 1001”
                 cid_for_label = SESSION.get(sid, {}).get("clientid") or cid
                 chan_labels = [f"payment channel {c} clientid {cid_for_label}" for c in chans]
-                chan_labels += ["bandingkan dengan bulan sebelumnya", "bulan ini", "bulan kemarin"]
+                chan_labels += [
+                    f"bandingkan dengan bulan sebelumnya clientid {cid_for_label}",
+                    f"lihat detail by day clientid {cid_for_label}",
+                    f"bulan ini clientid {cid_for_label}",
+                    f"bulan kemarin clientid {cid_for_label}",
+                ]
 
                 return {
                     "reply": header,
@@ -1637,10 +1803,10 @@ def chat(payload: Dict[str, Any] = Body(...)):
         ]
         cid_for_label = SESSION.get(sid, {}).get("clientid") or cid
         next_labels = [f"payment channel {c} clientid {cid_for_label}" for c in other] + [
-            "bandingkan dengan bulan sebelumnya",
-            "lihat detail by day",
-            "bulan ini",
-            "bulan kemarin",
+            f"bandingkan dengan bulan sebelumnya clientid {cid_for_label}",
+            f"lihat detail by day clientid {cid_for_label}",
+            f"bulan ini clientid {cid_for_label}",
+            f"bulan kemarin clientid {cid_for_label}",
         ]
 
         return {
