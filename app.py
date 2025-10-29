@@ -1393,7 +1393,7 @@ def chat(payload: dict = Body(...), request: Request = None):
                 }
 
             # user sebut channel, tapi tidak ada pada periode tsb
-            norm_chans = {ch.upper() for ch in chans}
+            norm_chans = {ch.upper() for ch in (chans or [])}
             if chans and channel.upper() not in norm_chans:
                 _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
                 return {
