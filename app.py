@@ -1507,109 +1507,6 @@ def _mk_choices(labels: list[str]) -> list[dict]:
     # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
 
-# def _norm_ch(v: str | None) -> str | None:
-#     if not v:
-#         return None
-#     v = v.strip().upper()
-#     # alias umum → boleh tambah sesuai kebutuhan
-#     if v in {"CREDIT", "CARD", "CREDITCARD"}: v = "CC"
-#     if v in {"VIRTUAL", "VIRTUALACCOUNT", "BANK"}: v = "VA"
-#     return v if v in CHANNELS else None
-
-# # ===== endpoint /chat =====
-# @app.post("/chat")
-# def chat(body: dict):
-#     """
-#     Body minimal:
-#       { "text": "...", "sid": "UUID-yang-sama-tiappesan" }
-#     """
-#     import re
-#     sid  = (body.get("sid") or "").strip()
-#     text = (body.get("text") or "").strip()
-#     if not sid:
-#         # fallback: buat sid sementara
-#         sid = "demo"
-
-#     state = SESS.get(sid, {})
-
-#     # ----------  A. MODE 'MENUNGGU CHANNEL' ----------
-#     if state.get("awaiting_channel"):
-#         # baca channel dari text, bisa "channel VA" atau "VA" saja
-#         m = re.search(r"(?:channel\s+)?([a-zA-Z]+)", text, flags=re.I)
-#         ch = _norm_ch(m.group(1)) if m else _norm_ch(text)
-#         if not ch:
-#             return {
-#                 "reply": "Channel tidak dikenali. Pilih salah satu:",
-#                 "hints": ["channel QRIS", "channel VA", "channel CC"]
-#             }
-
-#         clientid = state.get("clientid")
-#         year     = state.get("year")
-#         month    = state.get("month")
-#         if not (clientid and year and month):
-#             state["awaiting_channel"] = False
-#             SESS[sid] = state
-#             return {
-#                 "reply": "Aku kehilangan konteks clientid/periode. Contoh: `clientid 1001`.",
-#                 "hints": ["clientid 1001 Oktober 2025"]
-#             }
-
-#         # hitung SR per-channel
-#         with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-#             sr = _sr_by_channel(cur, clientid, ch, year, month)  # {ok,total,pct}
-#             mname = _merchant_name(cur, clientid)
-
-#         state["awaiting_channel"] = False   # clear flag supaya tak nyangkut
-#         SESS[sid] = state
-
-#         reply = (
-#             f"**{mname}** — Periode **{_month_name(month)} {year}**\n"
-#             f"Channel: **{ch}**\n"
-#             f"Success Rate: **{sr['pct']:.2f}%** ({sr['ok']}/{sr['total']})"
-#         )
-#         hints = [
-#             "bandingkan dengan bulan sebelumnya",
-#             "lihat detail by day",
-#             "pilih channel lain"
-#         ]
-#         return {"reply": reply, "hints": hints}
-
-#     # ----------  B. PARSE PERMINTAAN BARU (ringkasan awal) ----------
-#     # contoh intent: "SR clientid 1005 bulan oktober", dll
-#     # ↓ pakai logikamu yang sudah ada; yang penting hasilkan clientid, year, month
-#     clientid = _extract_clientid(text)         # int | None
-#     year, month = _extract_period(text)        # (int,int) | (curYear,curMonth)
-
-#     if clientid:
-#         # ringkasan agregat (tanpa channel) → minta user pilih channel
-#         with conn() as c, c.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-#             agg = _sr_aggregate(cur, clientid, year, month)     # {total, ok, pct, gmv}
-#             mname = _merchant_name(cur, clientid)
-
-#         # simpan state → kita sedang menunggu channel
-#         SESS[sid] = {
-#             "clientid": clientid,
-#             "year": year,
-#             "month": month,
-#             "awaiting_channel": True
-#         }
-
-#         reply = (
-#             f"**{mname}** · Periode **{_month_name(month)} {year}**\n"
-#             f"Total: **{agg['total']} trx** · SR agregat: **{agg['pct']:.2f}%** · "
-#             f"GMV: **Rp {agg['gmv']:,.0f}**"
-#         )
-#         hints = ["channel CC", "channel QRIS", "channel VA",
-#                  "bandingkan dengan bulan sebelumnya",
-#                  "bulan ini", "bulan kemarin"]
-#         return {"reply": reply, "hints": hints}
-
-#     # ----------  C. fallback ----------
-#     return {
-#         "reply": "Aku tidak menemukan *clientid*. Contoh: `clientid 1001`.",
-#         "hints": ["clientid 1001 bulan ini", "clientid 1002 Oktober 2025"]
-#     }
-
 SESS: dict[str, dict] = {}
 CHANNELS = {"QRIS","VA","CC"}
 
@@ -1619,6 +1516,26 @@ def _norm_ch(v: str|None)->str|None:
     if v in {"CREDIT","CARD","CREDITCARD"}: v = "CC"
     if v in {"VIRTUAL","VIRTUALACCOUNT","BANK"}: v = "VA"
     return v if v in CHANNELS else None
+
+def _extract_clientid(text: str) -> int | None:
+"""
+Mencari angka clientid dari input user.
+Contoh input:
+- 'clientid 1001'
+- 'tolong ambil SR clientid 1005'
+- 'success rate client 1234'
+"""
+if not text:
+    return None
+
+# Cari pola seperti 'clientid 1001' atau 'client 1234'
+match = re.search(r'\bclient(?:id)?\s*(\d{3,6})\b', text, re.IGNORECASE)
+if match:
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+return None
 
 @app.post("/chat")
 def chat(body: dict):
