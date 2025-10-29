@@ -290,12 +290,21 @@ function addHints(hints) {
     const b = document.createElement('button');
     b.className = 'hint';
     b.textContent = h;
-    b.onclick = ()=> { input.value = h; send.click(); };
+    b.onclick = ()=> {
+      // jika user pilih "pilih payment channel lain", minta ulang channel
+      if (h === 'pilih payment channel lain') {
+        ask('pilih channel');  // backend akan jawab dengan daftar channel periode aktif
+      } else {
+        input.value = h;
+        send.click();
+      }
+    };
     wrap.appendChild(b);
   });
   body.appendChild(wrap);
   body.scrollTop = body.scrollHeight;
 }
+
 
 async function ask(q) {
   addMsg(q, 'user');

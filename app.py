@@ -1372,37 +1372,61 @@ def chat(payload: dict = Body(...), request: Request = None):
         start, end = _month_range(year, month)
 
         with conn() as c, c.cursor() as cur:
-            # cek merchant name
+            # nama merchant
             cur.execute("SELECT COALESCE(NULLIF(name,''), merchant_id::text) FROM dim_merchant WHERE merchant_id=%s", (client_id,))
             row = cur.fetchone()
             if not row:
                 return {"reply": f"Client `{client_id}` belum terdaftar di `dim_merchant`.", "hints": []}
             mname = row[0]
 
-            # kalau channel belum disebut → klarifikasi + opsi
+            # daftar channel yang ada di periode tsb
+            chans = _available_channels(cur, client_id, start, end)
+            # kalau user belum sebut channel -> minta pilih
             if not channel:
-                chans = _available_channels(cur, client_id, start, end) or ["QRIS","VA","CC"]
-                # simpan context
                 _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
+                if not chans:
+                    return {"reply": f"Tidak ada transaksi untuk **{mname}** pada **{calendar.month_name[month]} {year}**.",
+                            "hints": []}
                 return {
                     "reply": f"Untuk **{mname}** periode **{calendar.month_name[month]} {year}**, mau cek channel yang mana?",
                     "hints": [f"channel {ch}" for ch in chans]
                 }
 
+            # user sebut channel, tapi tidak ada pada periode tsb
+            norm_chans = {ch.upper() for ch in chans}
+            if chans and channel.upper() not in norm_chans:
+                _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
+                return {
+                    "reply": (f"Maaf, **{channel}** tidak ditemukan untuk **{mname}** pada "
+                              f"**{calendar.month_name[month]} {year}**. Pilih payment channel lain:"),
+                    "hints": [f"channel {ch}" for ch in chans]
+                }
+
+            # hitung SR (kalau chans kosong tapi user tetap minta channel tertentu, tetap hitung -> hasil 0)
             sr, ok, total = _calc_sr(cur, client_id, channel, start, end)
 
-        # update context agar follow-up bisa lebih singkat
+        # simpan context aktif
         _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year, "channel": channel})
 
         reply = _fmt_sr_resp(mname, month, year, channel, sr, ok, total)
-        return {"reply": reply, "hints": [
+
+        # hints: bandingkan / detail / pilih channel lain
+        prev_m, prev_y = _prev_month(year, month)
+        hints = [
             "bandingkan dengan bulan sebelumnya",
             "lihat detail by day",
-            "ganti channel QRIS",
-        ]}
+        ]
+        # saran “pilih payment channel lain” hanya kalau memang ada alternatif lain
+        alt = [ch for ch in (chans or []) if ch.upper() != (channel or "").upper()]
+        if alt:
+            hints.append("pilih payment channel lain")
+
+        return {"reply": reply, "hints": hints}
+
     except Exception:
         logger.exception("chat handler failed")
         return {"reply": "Maaf, aku mengalami kendala memproses pertanyaanmu. Coba lagi sebentar ya.", "hints": []}
+
 
 
 
