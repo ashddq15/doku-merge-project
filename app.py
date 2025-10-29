@@ -1623,38 +1623,40 @@ def chat(payload: Dict[str, Any] = Body(...)):
                 }
 
             # ---- STEP 2: sudah ada channel → detail + AI
-            prev = None
-            if compare:
-                py, pm = _prev_month(year, month)
-                prev = _fetch_month_summary(cur, cid, py, pm, channel=channel)
+prev = None
+if compare:
+    py, pm = _prev_month(year, month)
+    prev = _fetch_month_summary(cur, cid, py, pm, channel=channel)
 
-        md_head = _md_stat_block(current)
-        ai_md = _ai_summary({"current": current, "previous": prev})
-        reply = f"{md_head}\n\n{ai_md}"
+md_head = _md_stat_block(current)
+ai_md = _ai_summary({"current": current, "previous": prev})
+reply = f"{md_head}\n\n{ai_md}"
 
-        # tombol lanjutan
-       other = [
+# tombol lanjutan
+other = [
     r["channel"] for r in current["by_channel"]
     if r["channel"] and r["channel"] != channel
-        ]
+]
 
-        cid = (ctx.get("clientid") if "ctx" in locals() else cid)
+# ambil clientid dari session bila ada; fallback ke cid lokal
+cid_for_label = (SESSION.get(sid, {}).get("clientid") or cid)
 
-        next_labels = [
-            f"payment channel {c} clientid {cid}" for c in other
-        ] + [
-            "bandingkan dengan bulan sebelumnya",
-            "lihat detail by day",
-            "bulan ini",
-            "bulan kemarin"
-        ]
+next_labels = [
+    f"payment channel {c} clientid {cid_for_label}" for c in other
+] + [
+    "bandingkan dengan bulan sebelumnya",
+    "lihat detail by day",
+    "bulan ini",
+    "bulan kemarin",
+]
 
-        return {
-            "reply": reply,
-            "suggestions": next_labels,
-            "actions": next_labels,
-            "choices": _mk_choices(next_labels)
-        }
+return {
+    "reply": reply,
+    "suggestions": next_labels,
+    "actions": next_labels,
+    "choices": _mk_choices(next_labels),
+}
+
 
     except Exception as e:
         logger.exception("chat handler failed")
