@@ -260,6 +260,8 @@ const win   = document.getElementById('merge-chat-window');
 const body  = document.getElementById('chat-body');
 const input = document.getElementById('chat-input');
 const send  = document.getElementById('chat-send');
+const form = document.getElementById('merge-chat-form');     
+  
 
 function addMsg(text, who='user') {
   const div = document.createElement('div');
@@ -345,6 +347,10 @@ function addHints(hints) {
       inflight = false;
     }
   }
+
+  // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
+  
+
   if (form) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
