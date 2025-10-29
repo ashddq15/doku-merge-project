@@ -320,55 +320,41 @@ function getMergeSid() {
     const k = 'merge_sid';
     let v = localStorage.getItem(k);
     if (!v) {
-      v = (crypto.randomUUID && crypto.randomUUID()) || (Date.now()+':'+Math.random());
+      v = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random();
       localStorage.setItem(k, v);
     }
     return v;
   }
-
   async function ask(q) {
+    if (inflight) return;
+    inflight = true;
+
     addMsg(q, 'user');
     const typing = addTyping();
+
     try {
       const r = await fetch('/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ text: q, sid: getMergeSid() })
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ sid: getMergeSid(), text: q })
       });
       const data = await r.json();
+
       typing.remove();
       addMsg(data.reply || '(tanpa balasan)', 'bot');
-      // dukung dua nama: choices (objek) atau suggestions (string)
-      addHints(data.choices || data.suggestions || []);
+
+      // Normalisasi hints/saran tombol dari server
+      const hints =
+        data.hints
+        || data.suggestions
+        || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
+      addHints(hints || []);
     } catch (e) {
       typing.remove();
       addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
+    } finally {
+      inflight = false;
     }
-  }
-
-  function addHints(items) {
-    const wrap = document.getElementById('hint-bar') || makeHintBar();
-    wrap.innerHTML = '';
-    (items || []).forEach(it => {
-      // it bisa string ATAU {label, text}
-      const label = (typeof it === 'string') ? it : (it.label ?? it.text ?? '');
-      const outgoing = (typeof it === 'string') ? it : (it.text ?? it.label ?? '');
-      if (!label || !outgoing) return;
-
-      const btn = document.createElement('button');
-      btn.className = 'merge-chip';
-      btn.textContent = label;
-      btn.onclick = () => ask(outgoing);   // <<< kirim “text” ke /chat
-      wrap.appendChild(btn);
-    });
-  }
-
-  function makeHintBar(){
-    const el = document.createElement('div');
-    el.id = 'hint-bar';
-    el.style.margin = '8px 0 0';
-    document.getElementById('chat-body').appendChild(el);
-    return el;
   }
 
   // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
