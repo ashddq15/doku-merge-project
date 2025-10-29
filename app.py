@@ -1358,6 +1358,12 @@ def _fmt_sr_resp(merchant_name, month, year, channel, sr, ok, total):
     )
 
 @app.post("/chat")
+def _prev_month(year: int, month: int):
+    """Mengembalikan bulan dan tahun sebelumnya"""
+    if month == 1:
+        return 12, year - 1
+    return month - 1, year
+
 def chat(payload: dict = Body(...), request: Request = None):
     ip = request.client.host if request else "local"
     text = (payload.get("text") or "").strip()
