@@ -345,12 +345,6 @@ function addHints(hints) {
       inflight = false;
     }
   }
-
-  // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
-  const form = document.getElementById('merge-chat-form');     // kalau ada
-  const input = document.getElementById('chat-input');
-  const btn   = document.getElementById('chat-send');
-
   if (form) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
