@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>DOKU CMCI – Merchant Collaboration Intelligence</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ========== DOKU Design System ========== */
+    :root {
+      --doku-red: #E31E24;
+      --doku-dark-red: #C41A1F;
+      --doku-bg: #F5F5F5;
+      --doku-sidebar: #FFFFFF;
+      --doku-card: #FFFFFF;
+      --doku-border: #E0E0E0;
+      --doku-text-primary: #2D2D2D;
+      --doku-text-secondary: #666666;
+      --doku-text-muted: #999999;
+      --doku-hover: #F9F9F9;
+      --doku-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      --green: #22c55e;
+      --yellow: #facc15;
+      --blue: #3b82f6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--doku-bg);
+      color: var(--doku-text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ========== Layout ========== */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ========== Sidebar ========== */
+    .sidebar {
+      width: 256px;
+      background: var(--doku-sidebar);
+      border-right: 1px solid var(--doku-border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--doku-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-box {
+      width: 40px;
+      height: 40px;
+      background: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    
+    .logo-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+
+    .logo-title {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .logo-subtitle {
+      font-size: 11px;
+      color: var(--doku-text-muted);
+    }
+
+    .sidebar-menu {
+      flex: 1;
+      padding: 16px 0;
+    }
+
+    .menu-section {
+      margin-bottom: 24px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      color: var(--doku-text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .menu-item:hover {
+      background: var(--doku-hover);
+      color: var(--doku-text-primary);
+    }
+
+    .menu-item.active {
+      background: rgba(227, 30, 36, 0.08);
+      color: var(--doku-red);
+      border-right: 3px solid var(--doku-red);
+    }
+
+    .menu-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--doku-border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .user-email {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--doku-text-muted);
+    }
+
+    /* ========== Main Content ========== */
+    .main-content {
+      flex: 1;
+      margin-left: 256px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ========== Top Navbar ========== */
+    .top-navbar {
+      background: white;
+      border-bottom: 1px solid var(--doku-border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--doku-text-muted);
+      font-size: 13px;
+    }
+
+    .breadcrumb-current {
+      color: var(--doku-text-primary);
+      font-weight: 600;
+    }
+
+    .navbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .notification-badge {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: var(--doku-hover);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .notification-badge:hover {
+      background: var(--doku-border);
+    }
+
+    .notification-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: var(--doku-red);
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    .language-selector {
+      padding: 6px 12px;
+      border: 1px solid var(--doku-border);
+      border-radius: 6px;
+      background: white;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* ========== Content Area ========== */
+    .content-area {
+      padding: 24px 32px;
+      flex: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .page-description {
+      font-size: 14px;
+      color: var(--doku-text-secondary);
+      line-height: 1.6;
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    /* ========== How to Use Banner ========== */
+    .how-to-use {
+      background: linear-gradient(135deg, #E31E24 0%, #C41A1F 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: var(--doku-shadow);
+    }
+
+    .how-to-use h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .how-to-use ol {
+      margin-left: 20px;
+      line-height: 1.8;
+    }
+
+    .how-to-use li {
+      margin-bottom: 8px;
+    }
+
+    .how-to-use strong {
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .how-to-use code {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+
+    /* ========== Cards ========== */
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--doku-shadow);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    /* ========== Grid Layout ========== */
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+
+    /* ========== Tables ========== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    thead {
+      background: var(--doku-hover);
+    }
+
+    th {
+      padding: 14px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--doku-text-secondary);
+      border-bottom: 1px solid var(--doku-border);
+      position: relative;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--doku-border);
+      font-size: 14px;
+    }
+
+    tbody tr:hover {
+      background: var(--doku-hover);
+      cursor: pointer;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ========== Buttons ========== */
+    .btn {
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn:hover {
+      background: var(--doku-dark-red);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ========== Pills/Badges ========== */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(227, 30, 36, 0.1);
+      border: 1px solid var(--doku-border);
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-right: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .pill.good {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ========== Tooltip ========== */
+    .tip {
+      display: inline-block;
+      margin-left: 6px;
+      background: var(--doku-hover);
+      border: 1px solid var(--doku-border);
+      width: 16px;
+      height: 16px;
+      line-height: 14px;
+      text-align: center;
+      border-radius: 50%;
+      font-size: 10px;
+      color: var(--doku-text-muted);
+      cursor: help;
+    }
+
+    .tip:hover + .tooltip {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tooltip {
+      position: absolute;
+      z-index: 5;
+      top: 140%;
+      left: 0;
+      width: 280px;
+      background: white;
+      border: 1px solid var(--doku-border);
+      padding: 12px;
+      border-radius: 8px;
+      color: var(--doku-text-primary);
+      font-size: 12px;
+      opacity: 0;
+      transition: 0.2s;
+      transform: translateY(-6px);
+      box-shadow: var(--doku-shadow);
+    }
+
+    /* ========== Row/Top Layouts ========== */
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .muted {
+      color: var(--doku-text-muted);
+    }
+
+    /* ========== Merchant Detail Blocks ========== */
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .block {
+      border: 1px solid var(--doku-border);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--doku-hover);
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--doku-text-secondary);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .kpi {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--doku-text-primary);
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13px;
+      color: var(--doku-text-secondary);
+    }
+
+    .spark {
+      display: flex;
+      gap: 2px;
+      margin-top: 6px;
+    }
+
+    .bar {
+      height: 24px;
+      width: 4px;
+      border-radius: 2px;
+      background: var(--doku-border);
+    }
+
+    .bar.on {
+      background: var(--doku-red);
+    }
+
+    /* ========== Selects ========== */
+    select {
+      background: white;
+      color: var(--doku-text-primary);
+      border: 1px solid var(--doku-border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* ========== Insight Box ========== */
+    #insightBox {
+      line-height: 1.6;
+      color: var(--doku-text-primary);
+    }
+
+    .insight .lead {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--doku-text-primary);
+    }
+
+    .insight .para {
+      margin: 8px 0;
+      color: var(--doku-text-secondary);
+    }
+
+    .insight .idea {
+      border: 1px solid var(--doku-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+      background: var(--doku-hover);
+    }
+
+    .insight .idea strong {
+      color: var(--doku-red);
+    }
+
+    /* ========== Chat Window ========== */
+    #merge-chat-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(227, 30, 36, 0.3);
+      z-index: 1000;
+      transition: all 0.3s;
+    }
+
+    #merge-chat-btn:hover {
+      background: var(--doku-dark-red);
+      transform: scale(1.05);
+    }
+
+    #merge-chat-window {
+      position: fixed;
+      bottom: 90px;
+      right: 24px;
+      width: 380px;
+      height: 520px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      display: none;
+      flex-direction: column;
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    #merge-chat-window.show {
+      display: flex;
+    }
+
+    .chat-header {
+      background: var(--doku-red);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-header-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .chat-close {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    .chat-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    #chat-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: var(--doku-bg);
+    }
+
+    .chat-row {
+      margin-bottom: 12px;
+      display: flex;
+    }
+
+    .chat-row.user {
+      justify-content: flex-end;
+    }
+
+    .chat-bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .chat-row.user .chat-bubble {
+      background: var(--doku-red);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-row.ai .chat-bubble {
+      background: white;
+      color: var(--doku-text-primary);
+      border: 1px solid var(--doku-border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-footer {
+      border-top: 1px solid var(--doku-border);
+      padding: 12px;
+      background: white;
+    }
+
+    #merge-chat-form {
+      display: flex;
+      gap: 8px;
+    }
+
+    #chat-input {
+      flex: 1;
+      border: 1px solid var(--doku-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    #chat-input:focus {
+      outline: none;
+      border-color: var(--doku-red);
+    }
+
+    #chat-send {
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    #chat-send:hover {
+      background: var(--doku-dark-red);
+    }
+
+    #chat-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ========== Responsive ========== */
+    @media (max-width: 1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+      
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      
+      .main-content {
+        margin-left: 0;
+      }
+      
+      .content-area {
+        padding: 16px;
+      }
+
+      #merge-chat-window {
+        width: calc(100% - 32px);
+        right: 16px;
+        left: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-box">
+        <img src="logodoku.png" alt="DOKU Logo">
+      </div>
+        <div class="logo-text">
+        <div class="logo-title">DOKU</div>
+        <div class="logo-subtitle">DOKU</div>
+        </div>
+      </div>
+
+
+      <nav class="sidebar-menu">
+        <div class="menu-section">
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🏠</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="menu-item">
+            <span class="menu-icon">📧</span>
+            <span>Email Blast</span>
+          </a>
+        </div>
+
+        <div class="menu-section">
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🔗</span>
+            <span>Integrations</span>
+          </a>
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🔔</span>
+            <span>HTTP Notifications</span>
+          </a>
+          <a href="#" class="menu-item active">
+            <span class="menu-icon">📊</span>
+            <span>CMCI Analytics</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-email">ms@doku.com</div>
+          <div class="user-role">DOKU MS</div>
+        </div>
+        <div style="cursor: pointer;">⋮</div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="breadcrumb">
+          <span>CMCI Analytics</span>
+        </div>
+        <div class="navbar-actions">
+          <div class="notification-badge">
+            🔔
+            <span class="notification-dot"></span>
+          </div>
+          <select class="language-selector">
+            <option>English</option>
+          </select>
+        </div>
+      </nav>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <div class="page-header">
+          <h1>Merchant Collaboration Intelligence Center</h1>
+          <p class="page-description">
+            Platform analytics untuk mengidentifikasi peluang kolaborasi antar merchant, 
+            memprediksi dampak musiman (seasonal), dan menganalisis distribusi geografis 
+            untuk meningkatkan success rate dan volume transaksi.
+          </p>
+        </div>
+
+        <!-- How to Use Section -->
+        <div class="how-to-use">
+          <h2>📖 How to Use This Dashboard</h2>
+          <ol>
+            <li><strong>Load Collaboration Data</strong>: Klik tombol <code>Load</code> pada tabel "Collaboration" untuk melihat merchant pairs dengan score tertinggi berdasarkan overlap user (Jaccard similarity).</li>
+            <li><strong>Seasonal Analysis</strong>: Ubah mode menjadi "Seasonal", pilih musim (Lebaran, Natal, Libur Sekolah), lalu klik <code>Load</code> untuk melihat collaboration patterns khusus di periode tersebut.</li>
+            <li><strong>View Merchant Details</strong>: Klik salah satu row pada tabel untuk melihat detail KPI masing-masing merchant (transaksi 30d, jumlah users, success rate).</li>
+            <li><strong>Geographic Analysis</strong>: Klik <code>Load Geo</code> untuk melihat merchant collaboration opportunities berdasarkan kedekatan geografis dan city distribution.</li>
+            <li><strong>AI Insight</strong>: Setelah memilih merchant pair, klik <code>Generate</code> pada panel "AI Insight" untuk mendapatkan rekomendasi kolaborasi powered by OpenAI.</li>
+            <li><strong>Chat AI Assistant</strong>: Klik tombol 💬 di pojok kanan bawah untuk bertanya tentang data collaboration, seasonal insights, atau rekomendasi strategi merchant.</li>
+          </ol>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid">
+          <!-- Left: Collaboration Table -->
+          <div>
+            <div class="card">
+              <div class="top">
+                <h3>
+                  Collaboration 
+                  <span class="tip">i</span>
+                  <span class="tooltip">
+                    <strong>Score</strong> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+                    Di MVP ini nilainya = Jaccard 30d. Pada versi penuh, Score akan menggabungkan:
+                    • Overlap user (Jaccard) • Perbedaan jam puncak (seasonality) 
+                    • Perbedaan channel (synergy) • Risiko kegagalan (fail risk).
+                  </span>
+                </h3>
+                <div class="row">
+                  <label>Mode:</label>
+                  <select id="collab-mode">
+                    <option value="normal">Normal</option>
+                    <option value="seasonal">Seasonal</option>
+                  </select>
+                  <select id="season-picker" style="display:none">
+                    <option value="">-- Pick season --</option>
+                  </select>
+                  <button class="btn" id="collab-load">Load</button>
+                </div>
+              </div>
+              <table id="collab-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>
+                      Score
+                      <span class="tip">i</span>
+                      <span class="tooltip">
+                        Score adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+                        Di MVP ini nilainya = Jaccard 30d. Pada versi penuh, Score akan menggabungkan:
+                        • Overlap user (Jaccard) • Perbedaan jam puncak (seasonality)
+                        • Perbedaan channel (synergy) • Risiko kegagalan (fail risk).
+                      </span>
+                    </th>
+                    <th>
+                      Jaccard 30d
+                      <span class="tip">i</span>
+                      <span class="tooltip">
+                        Jaccard 30d mengukur irisan pengguna kedua merchant selama 30 hari:
+                        <code>|A ∩ B| / (|A| + |B| − |A ∩ B|)</code>
+                        Semakin besar nilainya, semakin banyak pengguna yang sama di kedua merchant.
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <!-- Seasonal Table (hidden by default) -->
+            <div class="card" id="seasonal-card" style="display:none; margin-top:20px">
+              <h3>Seasonal</h3>
+              <p class="muted">Seasonal mode menghitung overlap hanya di rentang tanggal musim tersebut.</p>
+              <table id="seasonal-table">
+                <thead>
+                  <tr>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>Season</th>
+                    <th>Insight</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <!-- Geo Table -->
+            <div class="card" style="margin-top:20px">
+              <div class="top">
+                <h3>Geographic</h3>
+                <button class="btn" id="geo-load">Load Geo</button>
+              </div>
+              <table id="geo-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>Geo Score</th>
+                    <th>Distance (km)</th>
+                    <th>City</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right: Merchant Detail -->
+          <div>
+            <div class="card">
+              <h3 id="detail-title">Merchant Detail</h3>
+              <div id="detail-body">
+                <p class="muted">Click a row to see details</p>
+              </div>
+            </div>
+
+            <!-- AI Insight -->
+            <div class="card" style="margin-top:20px">
+              <div class="top">
+                <h3>AI Insight (Experimental)</h3>
+                <button class="btn" id="insight-btn" disabled>Generate</button>
+              </div>
+              <div id="insightBox" class="muted">Select a merchant pair first</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Chat Button & Window -->
+  <button id="merge-chat-btn">💬</button>
+  <div id="merge-chat-window">
+    <div class="chat-header">
+      <div class="chat-header-title">Merge AI Assistant</div>
+      <button class="chat-close" id="chat-close-btn">×</button>
+    </div>
+    <div id="chat-body"></div>
+    <div class="chat-footer">
+      <form id="merge-chat-form">
+        <input 
+          id="chat-input" 
+          type="text" 
+          placeholder="Ask me anything..." 
+          autocomplete="off"
+        />
+        <button id="chat-send" type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  const btn   = document.getElementById('merge-chat-btn');
+const win   = document.getElementById('merge-chat-window');
+const body  = document.getElementById('chat-body');
+const input = document.getElementById('chat-input');
+const send  = document.getElementById('chat-send');
+const form = document.getElementById('merge-chat-form');     
+  
+
+function addMsg(text, who='user') {
+  const div = document.createElement('div');
+  div.className = who === 'user'
+    ? 'chat-row user'
+    : 'chat-row ai';
+  div.innerHTML = `<div class="chat-bubble">${text}</div>`;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+btn.addEventListener('click', () => {
+  win.classList.toggle('show');
+  if (win.classList.contains('show') && body.children.length===0) {
+    addMsg('Hello! Saya Merge AI. Tanyakan tentang kolaborasi merchant, seasonal insight, dll.', 'ai');
+  }
+});
+
+document.getElementById('chat-close-btn').addEventListener('click', () => {
+  win.classList.remove('show');
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (!q) return;
+  addMsg(q, 'user');
+  input.value='';
+  send.disabled=true;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message:q})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    addMsg(data.reply, 'ai');
+  } catch(err) {
+    addMsg('Error: '+err.message, 'ai');
+  } finally {
+    send.disabled=false;
+  }
+});
+
+// ============== Collab Table ==============
+const collabTable = document.getElementById('collab-table').getElementsByTagName('tbody')[0];
+const collabMode  = document.getElementById('collab-mode');
+const seasonPicker= document.getElementById('season-picker');
+const collabLoad  = document.getElementById('collab-load');
+const seasonalCard= document.getElementById('seasonal-card');
+const seasonalTable=document.getElementById('seasonal-table').getElementsByTagName('tbody')[0];
+
+let selectedPair = null;
+
+collabMode.addEventListener('change', () => {
+  const isSeasonal = collabMode.value === 'seasonal';
+  seasonPicker.style.display = isSeasonal ? 'inline-block':'none';
+});
+
+// Load seasons
+fetch('/api/seasons').then(r=>r.json()).then(list=>{
+  list.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.season_id;
+    opt.textContent=`${s.season_name} (${s.start_date} to ${s.end_date})`;
+    seasonPicker.appendChild(opt);
+  });
+});
+
+collabLoad.addEventListener('click', async ()=>{
+  const mode = collabMode.value;
+  collabTable.innerHTML='<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+  try {
+    if (mode==='normal') {
+      const res = await fetch('/api/collaboration/top');
+      const data= await res.json();
+      collabTable.innerHTML='';
+      data.forEach((r,i)=>{
+        const tr = collabTable.insertRow();
+        tr.style.cursor='pointer';
+        tr.addEventListener('click', ()=> showDetail(r));
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.score.toFixed(3)}</td>
+          <td><span class="pill ${r.jaccard_30d>0.2?'good':''}">${r.jaccard_30d.toFixed(3)}</span></td>
+        `;
+      });
+      seasonalCard.style.display='none';
+    } else {
+      const sid = seasonPicker.value;
+      if (!sid) {
+        alert('Please pick a season first!');
+        collabTable.innerHTML='';
+        return;
+      }
+      const res = await fetch(`/api/collaboration/seasonal?season_id=${sid}`);
+      const data= await res.json();
+      collabTable.innerHTML='';
+      seasonalTable.innerHTML='';
+      
+      data.forEach((r,i)=>{
+        const tr = collabTable.insertRow();
+        tr.style.cursor='pointer';
+        tr.addEventListener('click', ()=> showDetail(r));
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.score.toFixed(3)}</td>
+          <td><span class="pill ${r.jaccard_30d>0.2?'good':''}">${r.jaccard_30d.toFixed(3)}</span></td>
+        `;
+
+        const tr2 = seasonalTable.insertRow();
+        tr2.innerHTML=`
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.season_name}</td>
+          <td>${r.insight || '-'}</td>
+        `;
+      });
+      seasonalCard.style.display='block';
+    }
+  } catch(err){
+    collabTable.innerHTML=`<tr><td colspan="5" style="text-align:center; color:var(--doku-red)">Error: ${err.message}</td></tr>`;
+  }
+});
+
+// ============== Geo Table ==============
+const geoTable = document.getElementById('geo-table').getElementsByTagName('tbody')[0];
+const geoLoad  = document.getElementById('geo-load');
+
+geoLoad.addEventListener('click', async ()=>{
+  geoTable.innerHTML='<tr><td colspan="6" style="text-align:center">Loading...</td></tr>';
+  try {
+    const res = await fetch('/api/collaboration/geographic');
+    const data= await res.json();
+    geoTable.innerHTML='';
+    data.forEach((r,i)=>{
+      const tr = geoTable.insertRow();
+      tr.style.cursor='pointer';
+      tr.addEventListener('click', ()=>showDetail(r));
+      tr.innerHTML=`
+        <td>${i+1}</td>
+        <td>${r.name_a}</td>
+        <td>${r.name_b}</td>
+        <td>${r.geo_score.toFixed(3)}</td>
+        <td>${r.distance_km ? r.distance_km.toFixed(1) : '-'}</td>
+        <td>${r.city_a || r.city_b || '-'}</td>
+      `;
+    });
+  } catch(err) {
+    geoTable.innerHTML=`<tr><td colspan="6" style="text-align:center; color:var(--doku-red)">Error: ${err.message}</td></tr>`;
+  }
+});
+
+// ============== Detail Panel ==============
+const detailTitle = document.getElementById('detail-title');
+const detailBody  = document.getElementById('detail-body');
+const insightBtn  = document.getElementById('insight-btn');
+const insightBox  = document.getElementById('insightBox');
+
+async function showDetail(row) {
+  selectedPair = row;
+  detailTitle.textContent = `${row.name_a || row.merchant_a} ⇄ ${row.name_b || row.merchant_b}`;
+  
+  detailBody.innerHTML='<p style="text-align:center; color:var(--doku-text-muted)">Loading...</p>';
+  insightBtn.disabled=false;
+
+  try {
+    const ma = row.merchant_a;
+    const mb = row.merchant_b;
+
+    const [resA, resB] = await Promise.all([
+      fetch(`/api/merchant/${ma}/kpi`),
+      fetch(`/api/merchant/${mb}/kpi`)
+    ]);
+    const kpiA = await resA.json();
+    const kpiB = await resB.json();
+
+    detailBody.innerHTML=`
+      <div class="cols">
+        <div class="block">
+          <div class="label">${row.name_a}</div>
+          <div class="kpi">ID: ${ma}</div>
+          <ul class="list">
+            <li>Txn 30d: ${kpiA.txn_30d}</li>
+            <li>Users 30d: ${kpiA.users_30d}</li>
+            <li>SR: ${(kpiA.sr*100).toFixed(1)}%</li>
+          </ul>
+          <div class="spark">
+            ${Array(12).fill(0).map((_, i)=>
+              `<div class="bar ${i%2===0?'on':''}"></div>`
+            ).join('')}
+          </div>
+        </div>
+        <div class="block">
+          <div class="label">${row.name_b}</div>
+          <div class="kpi">ID: ${mb}</div>
+          <ul class="list">
+            <li>Txn 30d: ${kpiB.txn_30d}</li>
+            <li>Users 30d: ${kpiB.users_30d}</li>
+            <li>SR: ${(kpiB.sr*100).toFixed(1)}%</li>
+          </ul>
+          <div class="spark">
+            ${Array(12).fill(0).map((_, i)=>
+              `<div class="bar ${i%3===0?'on':''}"></div>`
+            ).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  } catch(err) {
+    detailBody.innerHTML=`<p style="color:var(--doku-red)">Error: ${err.message}</p>`;
+  }
+}
+
+// ============== AI Insight ==============
+insightBtn.addEventListener('click', async ()=>{
+  if (!selectedPair) return;
+  insightBtn.disabled=true;
+  insightBox.innerHTML='<p style="color:var(--doku-text-muted)">Generating AI insight...</p>';
+
+  try {
+    const res = await fetch('/api/collaboration/insight', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(selectedPair)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    insightBox.innerHTML = `<div class="insight">${data.text}</div>`;
+  } catch(err) {
+    insightBox.innerHTML=`<p style="color:var(--doku-red)">Error: ${err.message}</p>`;
+  } finally {
+    insightBtn.disabled=false;
+  }
+});
+
+// Auto-load on page load
+collabLoad.click();
+  </script>
+</body>
+</html>
