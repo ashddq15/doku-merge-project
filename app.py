@@ -1249,197 +1249,161 @@ def scheduler_seed():
         c.commit()
     return {"ok": True, "msg": "Dummy merchant inserted."}
 
-# ======== /chat endpoint (siap tempel) ========
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, Tuple, List
-import re, datetime as dt
+# ---------- di app.py (ganti handler /chat) ----------
+from fastapi import Body
+import re
+from collections import defaultdict
+import calendar
+from datetime import datetime
 import pytz
 
-class ChatIn(BaseModel):
-    message: str
+# state ringan per IP (untuk demo)
+_SESSION_HINT = defaultdict(dict)
 
-class ChatOut(BaseModel):
-    reply: str
-
-_ID_PAT = re.compile(r'(?:client\s*id|clientid|merchant|mid)\s*(\d{3,})', re.I)
-_MONTHS_ID = {
-    # Indonesia
-    "januari":1, "februari":2, "maret":3, "april":4, "mei":5, "juni":6,
-    "juli":7, "agustus":8, "september":9, "oktober":10, "november":11, "desember":12,
-    # English
-    "january":1, "february":2, "march":3, "april":4, "may":5, "june":6,
-    "july":7, "august":8, "september":9, "october":10, "november":11, "december":12,
-}
-# mapping channel + sinonim
-_CH_MAP = {
-    "qris": ["qris", "qr", "qr-code", "scan"],
-    "va":   ["va", "virtual account", "bank transfer"],
-    "cc":   ["cc", "credit card", "kartu kredit", "visa", "mastercard"],
+_MONTH_ALIASES = {
+    "january":"01","jan":"01","januari":"01",
+    "february":"02","feb":"02","februari":"02",
+    "march":"03","mar":"03","maret":"03",
+    "april":"04","apr":"04",
+    "may":"05","mei":"05",
+    "june":"06","jun":"06","juni":"06",
+    "july":"07","jul":"07","juli":"07",
+    "august":"08","aug":"08","agustus":"08","agt":"08",
+    "september":"09","sep":"09",
+    "october":"10","oct":"10","oktober":"10","okt":"10",
+    "november":"11","nov":"11",
+    "december":"12","dec":"12","desember":"12","des":"12",
 }
 
-def _infer_channel(q: str) -> Optional[str]:
-    ql = q.lower()
-    for ch, keys in _CH_MAP.items():
-        if any(k in ql for k in keys):
-            return ch.upper()
-    return None  # artinya minta overall + breakdown
+def _parse_query(txt: str, ip: str):
+    t = txt.lower()
+    # client id
+    m = re.search(r"(clientid|client|merchant)\s*[:=]?\s*(\d{3,})", t)
+    client_id = int(m.group(2)) if m else _SESSION_HINT[ip].get("client_id")
 
-def _parse_client_id(q: str) -> Optional[int]:
-    m = _ID_PAT.search(q)
-    return int(m.group(1)) if m else None
+    # channel
+    m = re.search(r"(channel|payment|bayar)\s*(?:=|:)?\s*([a-z]+)", t)
+    channel = None
+    if m:
+        ch = m.group(2).upper()
+        # normalisasi
+        if ch in ("QR", "QRIS"): channel = "QRIS"
+        elif ch in ("CC","CARD","KARTU"): channel = "CC"
+        elif ch in ("VA","VIRTUALACCOUNT","VIRTUAL"): channel = "VA"
+        else: channel = ch
 
-def _period_from_text(q: str, now: Optional[dt.datetime] = None) -> Tuple[dt.datetime, dt.datetime, str]:
-    """
-    Return (start_utc, end_utc, label). Default 'bulan ini'.
-    Support: 'bulan ini', 'bulan lalu', '<bulan> [<tahun>]'
-    """
-    tz = pytz.timezone("Asia/Jakarta")
-    now = now or dt.datetime.now(tz)
-
-    ql = q.lower()
-    # bulan ini
-    if "bulan ini" in ql:
-        y, m = now.year, now.month
-    # bulan lalu
-    elif "bulan lalu" in ql:
-        d = (now.replace(day=1) - dt.timedelta(days=1))
-        y, m = d.year, d.month
+    # bulan/tahun
+    year = datetime.now().year
+    month = None
+    # angka bulan (10/2025, 2025-10)
+    m = re.search(r"(?:\D|^)(\d{1,2})\s*[\/\- ]\s*(20\d{2})", t)
+    if m:
+        month = int(m.group(1)); year = int(m.group(2))
     else:
-        # cari nama bulan eksplisit
-        y = None; m = None
-        for name, mi in _MONTHS_ID.items():
-            if name in ql:
-                m = mi
-                break
-        # cari tahun 20xx
-        y_find = re.search(r'(20\d{2})', ql)
-        y = int(y_find.group(1)) if y_find else now.year
-        if m is None:
-            # default: bulan ini
-            y, m = now.year, now.month
+        for k,v in _MONTH_ALIASES.items():
+            if re.search(rf"\b{k}\b", t):
+                month = int(v); break
+    # fallback: kalau user tulis “bulan ini/okt” dsb sudah ketangkap; kalau tidak -> pakai bulan berjalan
+    if not month:
+        month = _SESSION_HINT[ip].get("month", datetime.now().month)
+        year  = _SESSION_HINT[ip].get("year",  datetime.now().year)
 
-    # awal & akhir bulan di WIB, lalu convert ke UTC
-    start_local = tz.localize(dt.datetime(y, m, 1, 0, 0, 0))
-    if m == 12:
-        end_local = tz.localize(dt.datetime(y+1, 1, 1, 0, 0, 0))
-    else:
-        end_local = tz.localize(dt.datetime(y, m+1, 1, 0, 0, 0))
+    return client_id, channel, month, year
 
-    start_utc = start_local.astimezone(pytz.UTC)
-    end_utc = end_local.astimezone(pytz.UTC)
+def _month_range(year:int, month:int):
+    start = datetime(year, month, 1, 0, 0, 0, tzinfo=pytz.UTC)
+    last_day = calendar.monthrange(year, month)[1]
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=pytz.UTC)
+    return start, end
 
-    lbl = f"{start_local.strftime('%B %Y')}"  # contoh: Oktober 2025
-    return start_utc, end_utc, lbl
+def _available_channels(cur, client_id, start, end):
+    cur.execute("""
+      SELECT DISTINCT channel
+      FROM fact_tx
+      WHERE merchant_id = %s
+        AND paid_at BETWEEN %s AND %s
+    """, (client_id, start, end))
+    return [r[0] for r in cur.fetchall()]
 
-def _fmt_pct(num: int, den: int) -> str:
-    if den <= 0: return "0.00%"
-    return f"{(num/den)*100:0.2f}%"
+def _calc_sr(cur, client_id, channel, start, end):
+    cur.execute("""
+      WITH base AS (
+        SELECT status
+        FROM fact_tx
+        WHERE merchant_id=%s
+          AND channel=%s
+          AND paid_at BETWEEN %s AND %s
+      ),
+      agg AS (
+        SELECT
+          SUM(CASE WHEN status IN ('SALE') THEN 1 ELSE 0 END) AS ok,
+          SUM(CASE WHEN status IN ('FAILED','CANCEL','TIMEOUT') THEN 1 ELSE 0 END) AS fail,
+          COUNT(*) AS total
+        FROM base
+      )
+      SELECT ok, fail, total FROM agg;
+    """, (client_id, channel, start, end))
+    row = cur.fetchone() or (0,0,0)
+    ok, fail, total = [int(x or 0) for x in row]
+    sr = (ok/total*100.0) if total>0 else 0.0
+    return sr, ok, total
 
-def _query_sr(cur, mid: int, start: dt.datetime, end: dt.datetime, channel: Optional[str]) -> Dict[str, Any]:
-    # overall
-    if channel:
-        cur.execute("""
-            SELECT
-              COUNT(*)::int                           AS total,
-              COUNT(*) FILTER (WHERE status='SALE')::int AS ok
-            FROM fact_tx
-            WHERE merchant_id = %s
-              AND paid_at >= %s AND paid_at < %s
-              AND channel = %s
-        """, (mid, start, end, channel))
-    else:
-        cur.execute("""
-            SELECT
-              COUNT(*)::int                           AS total,
-              COUNT(*) FILTER (WHERE status='SALE')::int AS ok
-            FROM fact_tx
-            WHERE merchant_id = %s
-              AND paid_at >= %s AND paid_at < %s
-        """, (mid, start, end))
-    row = cur.fetchone() or {"total":0, "ok":0}
-    overall = {"ok": int(row["ok"]), "total": int(row["total"])}
+def _fmt_sr_resp(merchant_name, month, year, channel, sr, ok, total):
+    mn = calendar.month_name[month]
+    return (
+      f"**MERGE** — Hasil untuk **{merchant_name}**\n"
+      f"**Periode**: **{mn} {year}**\n"
+      f"**Channel**: **{channel}**\n"
+      f"**Success Rate**: **{sr:.2f}%**  (**{ok}/{total}**)"
+    )
 
-    # breakdown per channel (selalu kasih kalau user tidak menyebut channel)
-    breakdown = []
-    if not channel:
-        cur.execute("""
-            SELECT channel,
-                   COUNT(*)::int AS total,
-                   COUNT(*) FILTER (WHERE status='SALE')::int AS ok
-            FROM fact_tx
-            WHERE merchant_id=%s AND paid_at >= %s AND paid_at < %s
-            GROUP BY channel ORDER BY channel
-        """, (mid, start, end))
-        for r in cur.fetchall() or []:
-            breakdown.append({
-                "channel": r["channel"],
-                "ok": int(r["ok"]),
-                "total": int(r["total"])
-            })
-    return {"overall": overall, "breakdown": breakdown}
-
-def _format_reply(mid: int, ch: Optional[str], period_label: str,
-                  sr: Dict[str, Any], merchant_name: Optional[str]) -> str:
-    name = merchant_name or str(mid)
-    head = f"**MERGE**: Hasil MERGE 🧠 • Client **{name}** • Periode **{period_label}**"
-    if ch:
-        head += f" • Channel **{ch}**"
-    ov = sr["overall"]
-    body = f"\n• Success Rate: **{_fmt_pct(ov['ok'], ov['total'])}** ({ov['ok']}/{ov['total']}) 🎯"
-
-    # breakdown jika channel tidak spesifik
-    if not ch and sr["breakdown"]:
-        body += "\n• Breakdown per channel:"
-        for b in sr["breakdown"]:
-            body += f"\n   – {b['channel']}: {_fmt_pct(b['ok'], b['total'])} ({b['ok']}/{b['total']})"
-
-    if ov["total"] == 0:
-        body += "\n_(Belum ada transaksi pada periode tersebut)_"
-
-    return f"{head}{body}"
-
-@app.post("/chat", response_model=ChatOut)
-def chat(payload: ChatIn):
-    """
-    Adapter endpoint untuk UI lama.
-    - Parse niat user (client id, channel, periode)
-    - Hitung SR berdasarkan status='SALE'
-    - Kembalikan teks siap tampil
-    """
-    q = (payload.message or "").strip()
-    if not q:
-        return ChatOut(reply="Tulis pertanyaan, misalnya: *Hi Merge, SR clientid 1001 channel QRIS bulan September 2025?*")
+@app.post("/chat")
+def chat(payload: dict = Body(...), request: Request = None):
+    ip = request.client.host if request else "local"
+    text = (payload.get("text") or "").strip()
+    if not text:
+        return {"reply": "Tulis pertanyaanmu ya. Contoh: `clientid 1001 channel QRIS bulan oktober`", "hints": []}
 
     try:
-        mid = _parse_client_id(q)
-        if not mid:
-            return ChatOut(reply="Aku tidak menemukan *clientid*. Coba tulis seperti: `clientid 1001`.")
+        client_id, channel, month, year = _parse_query(text, ip)
+        if not client_id:
+            return {"reply": "Aku tidak menemukan *clientid*. Coba tulis seperti: `clientid 1001`.", "hints": []}
 
-        ch = _infer_channel(q)  # bisa None
-        start, end, label = _period_from_text(q)
+        start, end = _month_range(year, month)
 
-        # ambil nama merchant (optional)
-        merchant_name = None
-        with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
-            try:
-                cur.execute("SELECT name FROM dim_merchant WHERE merchant_id=%s", (mid,))
-                r = cur.fetchone()
-                if r and r.get("name"): merchant_name = r["name"]
-            except Exception:
-                merchant_name = None
+        with conn() as c, c.cursor() as cur:
+            # cek merchant name
+            cur.execute("SELECT COALESCE(NULLIF(name,''), merchant_id::text) FROM dim_merchant WHERE merchant_id=%s", (client_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"reply": f"Client `{client_id}` belum terdaftar di `dim_merchant`.", "hints": []}
+            mname = row[0]
 
-            sr = _query_sr(cur, mid, start, end, ch)
+            # kalau channel belum disebut → klarifikasi + opsi
+            if not channel:
+                chans = _available_channels(cur, client_id, start, end) or ["QRIS","VA","CC"]
+                # simpan context
+                _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
+                return {
+                    "reply": f"Untuk **{mname}** periode **{calendar.month_name[month]} {year}**, mau cek channel yang mana?",
+                    "hints": [f"channel {ch}" for ch in chans]
+                }
 
-        reply = _format_reply(mid, ch, label, sr, merchant_name)
-        return ChatOut(reply=reply)
+            sr, ok, total = _calc_sr(cur, client_id, channel, start, end)
 
-    except Exception as e:
-        logger.exception("CHAT failed: %s", e)
-        return ChatOut(
-            reply="Maaf, aku lagi kesulitan memproses permintaanmu. Coba lagi sebentar ya, atau spesifikkan: "
-                  "`clientid`, `channel (QRIS/VA/CC)`, dan periode (contoh: *bulan ini* / *bulan lalu* / *Oktober 2025*)."
-        )
-# ======== /chat endpoint (end) ========
+        # update context agar follow-up bisa lebih singkat
+        _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year, "channel": channel})
+
+        reply = _fmt_sr_resp(mname, month, year, channel, sr, ok, total)
+        return {"reply": reply, "hints": [
+            "bandingkan dengan bulan sebelumnya",
+            "lihat detail by day",
+            "ganti channel QRIS",
+        ]}
+    except Exception:
+        logger.exception("chat handler failed")
+        return {"reply": "Maaf, aku mengalami kendala memproses pertanyaanmu. Coba lagi sebentar ya.", "hints": []}
+
 
 
 

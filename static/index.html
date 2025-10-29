@@ -255,33 +255,92 @@
 </div>
 
 <script>
-   const btn = document.getElementById('merge-chat-btn');
-  const chat = document.getElementById('merge-chat-window');
-  const input = document.getElementById('chat-input');
-  const body = document.getElementById('chat-body');
-  const send = document.getElementById('chat-send');
+  const btn   = document.getElementById('merge-chat-btn');
+const win   = document.getElementById('merge-chat-window');
+const body  = document.getElementById('chat-body');
+const input = document.getElementById('chat-input');
+const send  = document.getElementById('chat-send');
 
-  btn.onclick = () => chat.style.display = chat.style.display === 'none' ? 'flex' : 'none';
+function addMsg(text, who='user') {
+  const div = document.createElement('div');
+  div.className = who === 'user'
+    ? 'chat-row user'
+    : 'chat-row bot';
+  // bold markdown mini
+  div.innerHTML = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
 
-  async function sendMessage() {
-    const text = input.value.trim();
-    if (!text) return;
-    body.innerHTML += `<div><b>You:</b> ${text}</div>`;
-    input.value = '';
-    body.innerHTML += `<div><i>MERGE AI is thinking...</i></div>`;
-    body.scrollTop = body.scrollHeight;
+function addTyping() {
+  const d = document.createElement('div');
+  d.className = 'chat-row bot typing';
+  d.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+  body.appendChild(d);
+  body.scrollTop = body.scrollHeight;
+  return d;
+}
+function addHints(hints) {
+  if (!hints || !hints.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'hint-wrap';
+  hints.forEach(h=>{
+    const b = document.createElement('button');
+    b.className = 'hint';
+    b.textContent = h;
+    b.onclick = ()=> { input.value = h; send.click(); };
+    wrap.appendChild(b);
+  });
+  body.appendChild(wrap);
+  body.scrollTop = body.scrollHeight;
+}
 
-    const res = await fetch('/chat', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text })
+async function ask(q) {
+  addMsg(q, 'user');
+  const typing = addTyping();
+  try {
+    const r = await fetch('/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text: q})
     });
-    const data = await res.json();
-    body.innerHTML = body.innerHTML.replace('<i>MERGE AI is thinking...</i>', `<b>MERGE:</b> ${data.reply}`);
-    body.scrollTop = body.scrollHeight;
+    const data = await r.json();
+    typing.remove();
+    addMsg(data.reply || '(tanpa balasan)', 'bot');
+    addHints(data.hints);
+  } catch(e) {
+    typing.remove();
+    addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
   }
+}
 
-  send.onclick = sendMessage;
-  input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+btn.onclick = ()=> win.style.display = (win.style.display==='none'?'flex':'none');
+send.onclick = ()=> {
+  const q = (input.value||'').trim();
+  if (!q) return;
+  input.value = '';
+  ask(q);
+};
+input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ send.click(); }});
+
+// gaya kecil
+const css = document.createElement('style');
+css.textContent = `
+.chat-row{margin:8px 0; line-height:1.4}
+.chat-row.user{ text-align:right; }
+.chat-row.user{ color:#111 }
+.chat-row.bot{ color:#222 }
+.hint-wrap{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap }
+.hint{ background:#ffe2e6; border:1px solid #e11d48; color:#b10e31; border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer }
+.hint:hover{ background:#ffd4db }
+.typing .dot{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:#999; animation:b 1s infinite alternate }
+.typing .dot:nth-child(2){ animation-delay:.2s }
+.typing .dot:nth-child(3){ animation-delay:.4s }
+@keyframes b { from{opacity:.3; transform:translateY(0)} to{opacity:1; transform:translateY(-2px)} }
+`;
+document.head.appendChild(css);
 const API = location.origin.replace(/\/app$/, ''); // base API
 let NEXT_HOLIDAY = null;
 
