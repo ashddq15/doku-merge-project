@@ -1491,8 +1491,9 @@ def _channel_suggestions(all_channels:List[Dict[str,Any]])->List[str]:
 @app.post("/chat")
 def chat(payload: Dict[str, Any] = Body(...)):
     """
-    Expects: { "text": "hi merge, sr clientid 1005 bulan oktober qris" }
-    Returns: { "reply": "<markdown>", "suggestions": ["...","..."] }
+    Interaktif 2-step:
+      - Tanpa channel -> kirim ringkasan singkat + opsi channel (suggestions).
+      - Dengan channel -> kirim detail + insight AI.
     """
     try:
         q = (payload.get("text") or "").strip()
@@ -1513,27 +1514,58 @@ def chat(payload: Dict[str, Any] = Body(...)):
 
         with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
             cur_s = _fetch_month_summary(cur, cid, year, month, channel=channel)
+
+            # === STEP 1: jika user BELUM menyebut channel ===
+            if channel is None:
+                if cur_s["totals"]["total_tx"] == 0:
+                    # tidak ada data bulan tsb
+                    reply = (
+                        f"**{cur_s['merchant']}** • Periode **{calendar.month_name[cur_s['month']]} {cur_s['year']}**\n"
+                        f"Tidak ada data transaksi pada periode ini.\n"
+                        f"Silakan pilih bulan lain."
+                    )
+                    return {
+                        "reply": reply,
+                        "suggestions": ["bulan ini", "bulan kemarin", "Oktober 2025", "September 2025"]
+                    }
+
+                # ada data -> tampilkan header singkat + pilihan channel
+                # rangkum SR total, lalu minta user memilih channel
+                t = cur_s["totals"]
+                header = (
+                    f"**{cur_s['merchant']}** • Periode **{calendar.month_name[cur_s['month']]} {cur_s['year']}**\n"
+                    f"Total: **{t['total_tx']}** trx • SR agregat: **{t['success_rate_pct']:.2f}%** • "
+                    f"GMV: **Rp {t['gmv']:,}**\n\n"
+                    f"Untuk channel mana yang mau dicek?"
+                )
+
+                # suggestions dibangun dari data real; fallback default kalau kosong
+                sugg = _channel_suggestions(cur_s["by_channel"])
+                # tambahkan aksi umum
+                sugg += ["bandingkan dengan bulan sebelumnya", "bulan ini", "bulan kemarin"]
+
+                return {"reply": header, "suggestions": sugg}
+
+            # === STEP 2: user SUDAH menyebut channel -> detail + AI ===
             prev_s = None
             if compare:
                 py, pm = _prev_month(year, month)
                 prev_s = _fetch_month_summary(cur, cid, py, pm, channel=channel)
 
-        # rangkai ringkasan + AI
         md_head = _md_stat_block(cur_s)
         ai_md = _ai_summary({"current": cur_s, "previous": prev_s})
 
-        # suggestions dinamis
-        sugg: List[str] = []
-        # tawarkan channel bila user tidak spesifik
-        if not channel:
-            sugg += _channel_suggestions(cur_s["by_channel"])
+        # suggestions lanjutan: ganti channel / bandingkan / detail harian
+        next_sugg: List[str] = []
+        # tawarkan channel lain yang tersedia selain yang dipilih
+        other_channels = [r["channel"] for r in cur_s["by_channel"] if r["channel"] and r["channel"] != channel]
+        if other_channels:
+            next_sugg += [f"channel {c}" for c in other_channels]
         # aksi umum
-        sugg += ["bandingkan dengan bulan sebelumnya", "lihat detail by day"]
-        # ganti bulan cepat
-        sugg += ["bulan ini","bulan kemarin"]
+        next_sugg += ["bandingkan dengan bulan sebelumnya", "lihat detail by day", "bulan ini", "bulan kemarin"]
 
         reply = f"{md_head}\n\n{ai_md}"
-        return {"reply": reply, "suggestions": sugg}
+        return {"reply": reply, "suggestions": next_sugg}
 
     except Exception as e:
         logger.exception("chat handler failed")
@@ -1541,6 +1573,7 @@ def chat(payload: Dict[str, Any] = Body(...)):
             "reply": f"Terjadi error di sisi server: **{type(e).__name__}**. Coba lagi ya.",
             "suggestions":[]
         }
+
 # ====== end /chat ======
 
 
