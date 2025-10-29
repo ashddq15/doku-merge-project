@@ -1506,8 +1506,6 @@ def _norm_channel_word(s: str | None) -> str | None:
 def _mk_choices(labels: list[str]) -> list[dict]:
     # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
-SESS: dict[str, dict] = {}            # { sid: {clientid, year, month, awaiting_channel: bool} }
-CHANNELS = {"QRIS", "VA", "CC"}
 
 # def _norm_ch(v: str | None) -> str | None:
 #     if not v:
