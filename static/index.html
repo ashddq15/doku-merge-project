@@ -307,11 +307,12 @@ function addHints(hints) {
   body.scrollTop = body.scrollHeight;
 }
 // --- SID tetap per browser ---
-  let MERGE_SID = localStorage.getItem('merge_sid');
-  if (!MERGE_SID) {
-    MERGE_SID = (crypto?.randomUUID?.() || String(Math.random())).replace(/[^a-z0-9-]/gi,'');
-    localStorage.setItem('merge_sid', MERGE_SID);
-  }
+ const MERGE_SID = (() => {
+    const k = 'merge_sid';
+    let v = localStorage.getItem(k);
+    if (!v) { v = crypto.randomUUID(); localStorage.setItem(k, v); }
+    return v;
+  })();
 
   // Hindari double-call saat user spam klik/enter
   let inflight = false;
