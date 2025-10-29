@@ -79,13 +79,86 @@ app.add_middleware(
 )
 
 
+import re
+from datetime import datetime, timezone
 
-
-BULAN_ID = {
-    "januari":1,"februari":2,"maret":3,"april":4,"mei":5,"juni":6,
-    "juli":7,"agustus":8,"september":9,"oktober":10,"november":11,"desember":12
+# normalisasi nama channel
+_CHANNEL_ALIASES = {
+    "qris": "QRIS", "gopay": "QRIS",  # boleh kustomisasi
+    "va": "VA", "virtual account": "VA", "bank": "VA",
+    "cc": "CC", "credit": "CC", "kartu kredit": "CC",
 }
-CHANNEL_MAP = {"QRIS":"QRIS","VA":"VA","VIRTUAL ACCOUNT":"VA","CC":"CC","CREDIT CARD":"CC","DEBIT":"DEBIT"}
+
+_ID_RE   = re.compile(r"(clientid|client|merchant|mid)\s*[:=]?\s*(\d+)", re.I)
+_CH_RE   = re.compile(r"(channel|payment|metode)\s*[:=]?\s*([a-zA-Z +]+)", re.I)
+_MON_RE1 = re.compile(r"(jan|feb|mar|apr|mei|may|jun|jul|aug|agu|sep|oct|okt|nov|dec|des)[a-z]*\s*(\d{4})?", re.I)
+_MON_RE2 = re.compile(r"bulan\s+(jan|feb|mar|apr|mei|may|jun|jul|aug|agu|sep|oct|okt|nov|dec|des)[a-z]*", re.I)
+_MON_RE3 = re.compile(r"(september|oktober|november|desember|januari|februari|maret|april|mei|juni|juli|agustus)", re.I)
+_YR_RE   = re.compile(r"(20\d{2})")
+
+def _norm_channel(txt: str|None) -> str|None:
+    if not txt: return None
+    t = txt.strip().lower()
+    t = t.replace("payment channel", "").replace("channel", "").strip()
+    t = t.replace("+", " ")
+    # ambil kata pertama relevan
+    for word in re.split(r"[^a-z]+", t):
+        if not word: continue
+        if word in _CHANNEL_ALIASES:
+            return _CHANNEL_ALIASES[word]
+        if word.upper() in ("QRIS","VA","CC"):
+            return word.upper()
+    return None
+
+# map bulan indo/eng → angka
+_MONTHS = {
+    # id
+    "januari":1,"februari":2,"maret":3,"april":4,"mei":5,"juni":6,"juli":7,"agustus":8,"september":9,"oktober":10,"november":11,"desember":12,
+    # en short/var
+    "jan":1,"feb":2,"mar":3,"apr":4,"may":5,"mei":5,"jun":6,"jul":7,"aug":8,"agu":8,"sep":9,"oct":10,"okt":10,"nov":11,"dec":12,"des":12,
+}
+
+def _month_to_range(mon: int, year: int):
+    start = datetime(year, mon, 1, tzinfo=timezone.utc).date()
+    if mon == 12:
+        end = datetime(year+1, 1, 1, tzinfo=timezone.utc).date()
+    else:
+        end = datetime(year, mon+1, 1, tzinfo=timezone.utc).date()
+    return start, end
+
+def parse_user_query(q: str) -> dict:
+    q = q.strip()
+
+    # merchant/client id
+    m = _ID_RE.search(q)
+    client_id = int(m.group(2)) if m else None
+
+    # channel (optional)
+    ch = None
+    m = _CH_RE.search(q)
+    if m:
+        ch = _norm_channel(m.group(2))
+
+    # bulan & tahun (default: bulan berjalan)
+    now = datetime.now(timezone.utc)
+    mon = now.month
+    yr  = now.year
+
+    for rx in ( _MON_RE1, _MON_RE2, _MON_RE3 ):
+        m = rx.search(q)
+        if m:
+            token = (m.group(1) or "").lower()
+            if token in _MONTHS:
+                mon = _MONTHS[token]
+            # coba cari tahun di dekatnya
+            my = _YR_RE.search(q)
+            if my:
+                yr = int(my.group(1))
+            break
+
+    start, end = _month_to_range(mon, yr)
+    return {"merchant_id": client_id, "channel": ch, "start": start, "end": end}
+
 
 def parse_params(msg: str):
     msg_low = msg.lower()
@@ -117,6 +190,54 @@ def parse_params(msg: str):
     last_day = calendar.monthrange(tahun, bln)[1]
     end = dt.date(tahun, bln, last_day)
     return client_id, ch, start, end
+
+def _sr_sql_and_params(merchant_id: int, start, end, channel: str|None):
+    # SR = sukses/total, sukses = status 'SALE'
+    if channel:
+        sql = """
+        WITH f AS (
+          SELECT status
+          FROM fact_tx
+          WHERE merchant_id = %s
+            AND paid_at >= %s AND paid_at < %s
+            AND channel = %s
+        )
+        SELECT
+          COUNT(*)                              AS total,
+          COUNT(*) FILTER (WHERE status='SALE') AS success,
+          ROUND(100.0 * COUNT(*) FILTER (WHERE status='SALE') / NULLIF(COUNT(*),0), 2) AS sr
+        FROM f;
+        """
+        params = (merchant_id, start, end, channel)
+        return sql, params
+
+    # tanpa channel → overall + breakdown per-channel
+    sql_overall = """
+      WITH f AS (
+        SELECT status
+        FROM fact_tx
+        WHERE merchant_id = %s
+          AND paid_at >= %s AND paid_at < %s
+      )
+      SELECT
+        COUNT(*)                              AS total,
+        COUNT(*) FILTER (WHERE status='SALE') AS success,
+        ROUND(100.0 * COUNT(*) FILTER (WHERE status='SALE') / NULLIF(COUNT(*),0), 2) AS sr
+      FROM f;
+    """
+    sql_by_ch = """
+      SELECT channel,
+             COUNT(*)                              AS total,
+             COUNT(*) FILTER (WHERE status='SALE') AS success,
+             ROUND(100.0 * COUNT(*) FILTER (WHERE status='SALE') / NULLIF(COUNT(*),0), 2) AS sr
+      FROM fact_tx
+      WHERE merchant_id = %s
+        AND paid_at >= %s AND paid_at < %s
+      GROUP BY channel
+      ORDER BY sr DESC NULLS LAST, channel;
+    """
+    return (sql_overall, (merchant_id, start, end)), (sql_by_ch, (merchant_id, start, end))
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -1128,50 +1249,255 @@ def scheduler_seed():
         c.commit()
     return {"ok": True, "msg": "Dummy merchant inserted."}
 
-@app.post("/chat")
-def chat_interactive(req: dict):
-    msg = (req.get("message") or "").strip()
-    if not msg:
-        raise HTTPException(status_code=400, detail="Message kosong")
+# ======== /chat endpoint (siap tempel) ========
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, Tuple, List
+import re, datetime as dt
+import pytz
 
-    client_id, channel, d1, d2 = parse_params(msg)
-    if not client_id:
-        return {"reply": "Boleh sebutkan **client id**-nya?"}
+class ChatIn(BaseModel):
+    message: str
 
-    # SQL deterministik + aman (hanya SELECT)
-    sql = """
-      WITH tx AS (
-        SELECT status
-        FROM fact_tx
-        WHERE merchant_id = %s
-          AND channel = %s
-          AND paid_at::date BETWEEN %s AND %s
-      )
-      SELECT
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE UPPER(status) = 'SUCCESS') AS succ,
-        CASE WHEN COUNT(*)=0 THEN 0
-             ELSE COUNT(*) FILTER (WHERE UPPER(status)='SUCCESS')::float / COUNT(*)
-        END AS success_rate
-      FROM tx;
+class ChatOut(BaseModel):
+    reply: str
+
+_ID_PAT = re.compile(r'(?:client\s*id|clientid|merchant|mid)\s*(\d{3,})', re.I)
+_MONTHS_ID = {
+    # Indonesia
+    "januari":1, "februari":2, "maret":3, "april":4, "mei":5, "juni":6,
+    "juli":7, "agustus":8, "september":9, "oktober":10, "november":11, "desember":12,
+    # English
+    "january":1, "february":2, "march":3, "april":4, "may":5, "june":6,
+    "july":7, "august":8, "september":9, "october":10, "november":11, "december":12,
+}
+# mapping channel + sinonim
+_CH_MAP = {
+    "qris": ["qris", "qr", "qr-code", "scan"],
+    "va":   ["va", "virtual account", "bank transfer"],
+    "cc":   ["cc", "credit card", "kartu kredit", "visa", "mastercard"],
+}
+
+def _infer_channel(q: str) -> Optional[str]:
+    ql = q.lower()
+    for ch, keys in _CH_MAP.items():
+        if any(k in ql for k in keys):
+            return ch.upper()
+    return None  # artinya minta overall + breakdown
+
+def _parse_client_id(q: str) -> Optional[int]:
+    m = _ID_PAT.search(q)
+    return int(m.group(1)) if m else None
+
+def _period_from_text(q: str, now: Optional[dt.datetime] = None) -> Tuple[dt.datetime, dt.datetime, str]:
     """
+    Return (start_utc, end_utc, label). Default 'bulan ini'.
+    Support: 'bulan ini', 'bulan lalu', '<bulan> [<tahun>]'
+    """
+    tz = pytz.timezone("Asia/Jakarta")
+    now = now or dt.datetime.now(tz)
+
+    ql = q.lower()
+    # bulan ini
+    if "bulan ini" in ql:
+        y, m = now.year, now.month
+    # bulan lalu
+    elif "bulan lalu" in ql:
+        d = (now.replace(day=1) - dt.timedelta(days=1))
+        y, m = d.year, d.month
+    else:
+        # cari nama bulan eksplisit
+        y = None; m = None
+        for name, mi in _MONTHS_ID.items():
+            if name in ql:
+                m = mi
+                break
+        # cari tahun 20xx
+        y_find = re.search(r'(20\d{2})', ql)
+        y = int(y_find.group(1)) if y_find else now.year
+        if m is None:
+            # default: bulan ini
+            y, m = now.year, now.month
+
+    # awal & akhir bulan di WIB, lalu convert ke UTC
+    start_local = tz.localize(dt.datetime(y, m, 1, 0, 0, 0))
+    if m == 12:
+        end_local = tz.localize(dt.datetime(y+1, 1, 1, 0, 0, 0))
+    else:
+        end_local = tz.localize(dt.datetime(y, m+1, 1, 0, 0, 0))
+
+    start_utc = start_local.astimezone(pytz.UTC)
+    end_utc = end_local.astimezone(pytz.UTC)
+
+    lbl = f"{start_local.strftime('%B %Y')}"  # contoh: Oktober 2025
+    return start_utc, end_utc, lbl
+
+def _fmt_pct(num: int, den: int) -> str:
+    if den <= 0: return "0.00%"
+    return f"{(num/den)*100:0.2f}%"
+
+def _query_sr(cur, mid: int, start: dt.datetime, end: dt.datetime, channel: Optional[str]) -> Dict[str, Any]:
+    # overall
+    if channel:
+        cur.execute("""
+            SELECT
+              COUNT(*)::int                           AS total,
+              COUNT(*) FILTER (WHERE status='SALE')::int AS ok
+            FROM fact_tx
+            WHERE merchant_id = %s
+              AND paid_at >= %s AND paid_at < %s
+              AND channel = %s
+        """, (mid, start, end, channel))
+    else:
+        cur.execute("""
+            SELECT
+              COUNT(*)::int                           AS total,
+              COUNT(*) FILTER (WHERE status='SALE')::int AS ok
+            FROM fact_tx
+            WHERE merchant_id = %s
+              AND paid_at >= %s AND paid_at < %s
+        """, (mid, start, end))
+    row = cur.fetchone() or {"total":0, "ok":0}
+    overall = {"ok": int(row["ok"]), "total": int(row["total"])}
+
+    # breakdown per channel (selalu kasih kalau user tidak menyebut channel)
+    breakdown = []
+    if not channel:
+        cur.execute("""
+            SELECT channel,
+                   COUNT(*)::int AS total,
+                   COUNT(*) FILTER (WHERE status='SALE')::int AS ok
+            FROM fact_tx
+            WHERE merchant_id=%s AND paid_at >= %s AND paid_at < %s
+            GROUP BY channel ORDER BY channel
+        """, (mid, start, end))
+        for r in cur.fetchall() or []:
+            breakdown.append({
+                "channel": r["channel"],
+                "ok": int(r["ok"]),
+                "total": int(r["total"])
+            })
+    return {"overall": overall, "breakdown": breakdown}
+
+def _format_reply(mid: int, ch: Optional[str], period_label: str,
+                  sr: Dict[str, Any], merchant_name: Optional[str]) -> str:
+    name = merchant_name or str(mid)
+    head = f"**MERGE**: Hasil MERGE 🧠 • Client **{name}** • Periode **{period_label}**"
+    if ch:
+        head += f" • Channel **{ch}**"
+    ov = sr["overall"]
+    body = f"\n• Success Rate: **{_fmt_pct(ov['ok'], ov['total'])}** ({ov['ok']}/{ov['total']}) 🎯"
+
+    # breakdown jika channel tidak spesifik
+    if not ch and sr["breakdown"]:
+        body += "\n• Breakdown per channel:"
+        for b in sr["breakdown"]:
+            body += f"\n   – {b['channel']}: {_fmt_pct(b['ok'], b['total'])} ({b['ok']}/{b['total']})"
+
+    if ov["total"] == 0:
+        body += "\n_(Belum ada transaksi pada periode tersebut)_"
+
+    return f"{head}{body}"
+
+@app.post("/chat", response_model=ChatOut)
+def chat(payload: ChatIn):
+    """
+    Adapter endpoint untuk UI lama.
+    - Parse niat user (client id, channel, periode)
+    - Hitung SR berdasarkan status='SALE'
+    - Kembalikan teks siap tampil
+    """
+    q = (payload.message or "").strip()
+    if not q:
+        return ChatOut(reply="Tulis pertanyaan, misalnya: *Hi Merge, SR clientid 1001 channel QRIS bulan September 2025?*")
+
     try:
-        with conn() as c:
-            with c.cursor() as cur:
-                # batasin durasi eksekusi query supaya UI ga ngegantung
-                cur.execute("SET LOCAL statement_timeout = 5000")  # 5s
-                cur.execute(sql, (client_id, channel, d1, d2))
-                total, succ, rate = cur.fetchone()
+        mid = _parse_client_id(q)
+        if not mid:
+            return ChatOut(reply="Aku tidak menemukan *clientid*. Coba tulis seperti: `clientid 1001`.")
+
+        ch = _infer_channel(q)  # bisa None
+        start, end, label = _period_from_text(q)
+
+        # ambil nama merchant (optional)
+        merchant_name = None
+        with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
+            try:
+                cur.execute("SELECT name FROM dim_merchant WHERE merchant_id=%s", (mid,))
+                r = cur.fetchone()
+                if r and r.get("name"): merchant_name = r["name"]
+            except Exception:
+                merchant_name = None
+
+            sr = _query_sr(cur, mid, start, end, ch)
+
+        reply = _format_reply(mid, ch, label, sr, merchant_name)
+        return ChatOut(reply=reply)
+
     except Exception as e:
-        logger.exception("chat SQL error")
-        return {"reply": "Maaf, terjadi kendala saat membaca data SR."}
-
-    bln_label = d1.strftime("%B %Y")
-    if total == 0:
-        return {"reply": f"Tidak ada transaksi **{channel}** untuk client **{client_id}** pada **{bln_label}**."}
-
-    rate_pct = f"{rate*100:.2f}%"
-    return {"reply": f"Hasil MERGE 🧠\n\n• Client **{client_id}**\n• Channel **{channel}**\n• Periode **{bln_label}**\n• Success Rate: **{rate_pct}** ({succ}/{total}) 🎯"}
+        logger.exception("CHAT failed: %s", e)
+        return ChatOut(
+            reply="Maaf, aku lagi kesulitan memproses permintaanmu. Coba lagi sebentar ya, atau spesifikkan: "
+                  "`clientid`, `channel (QRIS/VA/CC)`, dan periode (contoh: *bulan ini* / *bulan lalu* / *Oktober 2025*)."
+        )
+# ======== /chat endpoint (end) ========
 
 
+
+from fastapi import Body
+
+@app.post("/agent/sr")
+def agent_sr(payload: dict = Body(...)):
+    """
+    payload = { "q": "Hi Merge, berapa SR clientid 1234 CC bulan Agustus?" }
+    """
+    q = (payload or {}).get("q","")
+    parsed = parse_user_query(q)
+
+    if not parsed["merchant_id"]:
+        # Kalau user belum sebut clientid, beri jawaban langsung & contoh
+        return {
+            "reply": ("Aku butuh *clientid*-nya ya. Contoh: "
+                      "`SR clientid 1001 channel QRIS bulan September`."),
+            "meta": {"need_client_id": True}
+        }
+
+    mid     = parsed["merchant_id"]
+    start   = parsed["start"]
+    end     = parsed["end"]
+    channel = parsed["channel"]
+
+    with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
+        if channel:
+            sql, params = _sr_sql_and_params(mid, start, end, channel)
+            cur.execute(sql, params)
+            row = cur.fetchone()
+            total   = int(row["total"])
+            success = int(row["success"])
+            sr      = float(row["sr"] or 0.0)
+            when = f"{start.strftime('%B %Y')}"
+            ch = channel
+            reply = (f"MERGE: Hasil untuk **client {mid}**, **channel {ch}**, "
+                     f"periode **{when}** → Success Rate: **{sr:.2f}%** "
+                     f"({success}/{total}).")
+            return {"reply": reply, "data": {"total":total,"success":success,"sr":sr}}
+        else:
+            (sql_all, p_all), (sql_ch, p_ch) = _sr_sql_and_params(mid, start, end, None)
+            cur.execute(sql_all, p_all)
+            o = cur.fetchone()
+            total   = int(o["total"])
+            success = int(o["success"])
+            sr      = float(o["sr"] or 0.0)
+
+            cur.execute(sql_ch, p_ch)
+            bych = cur.fetchall()
+            lines = []
+            for r in bych:
+                lines.append(f"- {r['channel']}: {float(r['sr'] or 0.0):.2f}% ({int(r['success'])}/{int(r['total'])})")
+            when = f"{start.strftime('%B %Y')}"
+            reply = (
+              f"MERGE: **client {mid}** periode **{when}**\n"
+              f"• Overall SR: **{sr:.2f}%** ({success}/{total})\n"
+              + ("• Per-channel:\n" + "\n".join(lines) if lines else "• Per-channel: (tidak ada data)")
+            )
+            return {"reply": reply, "data": {"overall":{"total":total,"success":success,"sr":sr}, "by_channel": bych}}
 
