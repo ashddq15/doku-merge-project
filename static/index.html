@@ -304,26 +304,68 @@ function addHints(hints) {
   body.appendChild(wrap);
   body.scrollTop = body.scrollHeight;
 }
-
-
-async function ask(q) {
-  addMsg(q, 'user');
-  const typing = addTyping();
-  try {
-    const r = await fetch('/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text: q})
-    });
-    const data = await r.json();
-    typing.remove();
-    addMsg(data.reply || '(tanpa balasan)', 'bot');
-    addHints(data.hints);
-  } catch(e) {
-    typing.remove();
-    addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
+// --- SID tetap per browser ---
+  let MERGE_SID = localStorage.getItem('merge_sid');
+  if (!MERGE_SID) {
+    MERGE_SID = (crypto?.randomUUID?.() || String(Math.random())).replace(/[^a-z0-9-]/gi,'');
+    localStorage.setItem('merge_sid', MERGE_SID);
   }
-}
+
+  // Hindari double-call saat user spam klik/enter
+  let inflight = false;
+
+  async function ask(q) {
+    if (inflight) return;
+    inflight = true;
+
+    addMsg(q, 'user');
+    const typing = addTyping();
+
+    try {
+      const r = await fetch('/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ sid: MERGE_SID, text: q })
+      });
+      const data = await r.json();
+
+      typing.remove();
+      addMsg(data.reply || '(tanpa balasan)', 'bot');
+
+      // Normalisasi hints/saran tombol dari server
+      const hints =
+        data.hints
+        || data.suggestions
+        || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
+      addHints(hints || []);
+    } catch (e) {
+      typing.remove();
+      addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
+    } finally {
+      inflight = false;
+    }
+  }
+
+  // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
+  const form = document.getElementById('merge-chat-form');     // kalau ada
+  const input = document.getElementById('chat-input');
+  const btn   = document.getElementById('chat-send');
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = (input.value || '').trim();
+      if (v) ask(v);
+      input.value = '';
+    });
+  }
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const v = (input.value || '').trim();
+      if (v) ask(v);
+      input.value = '';
+    });
+  }
 
 btn.onclick = ()=> win.style.display = (win.style.display==='none'?'flex':'none');
 send.onclick = ()=> {
