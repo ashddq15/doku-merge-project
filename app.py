@@ -1492,24 +1492,21 @@ def _channel_suggestions(all_channels:List[Dict[str,Any]])->List[str]:
 SESSION: dict[str, dict] = {}
 
 def _get_sid(payload: dict) -> str:
-    sid = (payload.get("sid") or "").strip()
-    return sid or "default"
-
-def _mk_choices(labels: list[str]) -> list[dict]:
-    # tombol yang menempelkan teks ke input saat diklik
-    return [{"label": lab, "text": lab} for lab in labels]
+    return (payload.get("sid") or "default").strip()
 
 def _norm_channel_word(s: str | None) -> str | None:
-    if not s: return None
+    if not s:
+        return None
     s = s.strip().lower()
-    if s.startswith("channel "): s = s[8:]
-    if s in ("qris","qr","qr code"): return "QRIS"
-    if s in ("va","virtual account"): return "VA"
-    if s in ("cc","card","credit card","kartu kredit"): return "CC"
+    if s in ("qris", "qr", "qr code"):
+        return "QRIS"
+    if s in ("va", "virtual account"):
+        return "VA"
+    if s in ("cc", "card", "credit card", "kartu kredit"):
+        return "CC"
     return s.upper()
 
 def _mk_choices(labels: list[str]) -> list[dict]:
-    # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
 
 
@@ -1531,6 +1528,8 @@ def _extract_channel_loose(text: str | None) -> str | None:
         if cand == canon.lower() or cand in aliases:
             return
 logger.info("chat sid=%s intent=%s", sid, intent)
+# ==== simple in-memory session context (TTL optional) ====
+
 
 @app.post("/chat")
 def chat(payload: Dict[str, Any] = Body(...)):
@@ -1543,43 +1542,40 @@ def chat(payload: Dict[str, Any] = Body(...)):
         sid = _get_sid(payload)
         q = (payload.get("text") or "").strip()
         if not q:
-            return {"reply":"(pesan kosong)", "suggestions":[], "actions":[], "choices":[]}
+            return {"reply": "(pesan kosong)", "suggestions": [], "actions": [], "choices": []}
 
-        # ---- parse intent utama
+        # parse intent utama
         intent = _parse_intent(q)
-        cid    = intent["clientid"]
+        cid = intent["clientid"]
         year, month = intent["year"], intent["month"]
-        channel = intent.get("channel")
-        channel = (_norm_channel_word(channel)
-           if channel else _extract_channel_loose(q))
+        channel = _norm_channel_word(intent["channel"])
         compare = intent["compare"]
 
-        # ---- jika user hanya ketik "qris"/"va"/"cc", ambil dari session
+        # jika user hanya mengetik "qris"/"va"/"cc" → gunakan konteks session sebelumnya
         if not cid and not year and not month and channel:
-            ctx = SESSION.get(sid) or SESSION.get("default") or {}
-            if ctx.get("clientid") and ctx.get("year") and ctx.get("month"):
-                cid   = ctx["clientid"]
-                year  = ctx["year"]
+            ctx = SESSION.get(sid) or {}
+            if ctx.get("clientid"):
+                cid = ctx["clientid"]
+                year = ctx["year"]
                 month = ctx["month"]
-                logger.info("chat: reuse ctx for sid=%s -> cid=%s y=%s m=%s", sid, cid, year, month)
             else:
                 return {
                     "reply": "Aku butuh *clientid* dulu sebelum memilih channel. Contoh: `clientid 1001`.",
                     "suggestions": ["clientid 1001", "clientid 1002 Oktober 2025"],
                     "actions": ["clientid 1001", "clientid 1002 Oktober 2025"],
-                    "choices": _mk_choices(["clientid 1001","clientid 1002 Oktober 2025"])
+                    "choices": _mk_choices(["clientid 1001", "clientid 1002 Oktober 2025"]),
                 }
 
-        # ---- wajib punya clientid
+        # wajib ada clientid
         if not cid:
             return {
-                "reply":"Aku tidak menemukan *clientid*. Contoh: `clientid 1001`.",
-                "suggestions":["clientid 1001 bulan ini","clientid 1002 Oktober 2025"],
-                "actions":["clientid 1001 bulan ini","clientid 1002 Oktober 2025"],
-                "choices": _mk_choices(["clientid 1001 bulan ini","clientid 1002 Oktober 2025"])
+                "reply": "Aku tidak menemukan *clientid*. Contoh: `clientid 1001`.",
+                "suggestions": ["clientid 1001 bulan ini", "clientid 1002 Oktober 2025"],
+                "actions": ["clientid 1001 bulan ini", "clientid 1002 Oktober 2025"],
+                "choices": _mk_choices(["clientid 1001 bulan ini", "clientid 1002 Oktober 2025"]),
             }
 
-        # default periode kalau user tidak sebut
+        # default periode = bulan berjalan bila tidak disebut
         if not year or not month:
             today = date.today()
             year, month = today.year, today.month
@@ -1587,11 +1583,10 @@ def chat(payload: Dict[str, Any] = Body(...)):
         with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
             current = _fetch_month_summary(cur, cid, year, month, channel=channel)
 
-            # simpan konteks supaya langkah berikutnya bisa pakai
+            # simpan konteks (supaya klik tombol lanjutan masih ingat clientid & periode)
             SESSION[sid] = {"clientid": cid, "year": year, "month": month}
-            SESSION["default"] = SESSION[sid].copy()
 
-            # ---- STEP 1: belum ada channel → header + tombol pilihan real
+            # STEP 1: belum ada channel → tampilkan header & tombol pilihan channel
             if channel is None:
                 t = current["totals"]
                 header = (
@@ -1604,67 +1599,65 @@ def chat(payload: Dict[str, Any] = Body(...)):
 
                 chans = [r["channel"] for r in current["by_channel"] if r["channel"]]
                 if not chans:
+                    labels = ["bandingkan dengan bulan sebelumnya", "bulan kemarin"]
                     return {
                         "reply": header + "\n(Tidak ada pembagian channel pada periode ini.)",
-                        "suggestions":["bandingkan dengan bulan sebelumnya","bulan kemarin"],
-                        "actions":["bandingkan dengan bulan sebelumnya","bulan kemarin"],
-                        "choices": _mk_choices(["bandingkan dengan bulan sebelumnya","bulan kemarin"])
+                        "suggestions": labels,
+                        "actions": labels,
+                        "choices": _mk_choices(labels),
                     }
 
-                chan_labels = [f"channel {c}" for c in chans]  # contoh: "channel QRIS"
-                # tambahkan opsi umum
-                chan_labels += ["bandingkan dengan bulan sebelumnya","bulan ini","bulan kemarin"]
+                # tombol channel: “payment channel QRIS clientid 1001”
+                cid_for_label = SESSION.get(sid, {}).get("clientid") or cid
+                chan_labels = [f"payment channel {c} clientid {cid_for_label}" for c in chans]
+                chan_labels += ["bandingkan dengan bulan sebelumnya", "bulan ini", "bulan kemarin"]
 
                 return {
                     "reply": header,
                     "suggestions": chan_labels,
                     "actions": chan_labels,
-                    "choices": _mk_choices(chan_labels)
+                    "choices": _mk_choices(chan_labels),
                 }
 
-            # ---- STEP 2: sudah ada channel → detail + AI
-prev = None
-if compare:
-    py, pm = _prev_month(year, month)
-    prev = _fetch_month_summary(cur, cid, py, pm, channel=channel)
+            # STEP 2: sudah ada channel → detail & (opsional) bandingkan
+            prev = None
+            if compare:
+                py, pm = _prev_month(year, month)
+                prev = _fetch_month_summary(cur, cid, py, pm, channel=channel)
 
-md_head = _md_stat_block(current)
-ai_md = _ai_summary({"current": current, "previous": prev})
-reply = f"{md_head}\n\n{ai_md}"
+        md_head = _md_stat_block(current)
+        ai_md = _ai_summary({"current": current, "previous": prev})
+        reply = f"{md_head}\n\n{ai_md}"
 
-# tombol lanjutan
-other = [
-    r["channel"] for r in current["by_channel"]
-    if r["channel"] and r["channel"] != channel
-]
+        # tombol lanjutan: channel lain + aksi lanjutan
+        other = [
+            r["channel"]
+            for r in current["by_channel"]
+            if r["channel"] and r["channel"] != channel
+        ]
+        cid_for_label = SESSION.get(sid, {}).get("clientid") or cid
+        next_labels = [f"payment channel {c} clientid {cid_for_label}" for c in other] + [
+            "bandingkan dengan bulan sebelumnya",
+            "lihat detail by day",
+            "bulan ini",
+            "bulan kemarin",
+        ]
 
-# ambil clientid dari session bila ada; fallback ke cid lokal
-cid_for_label = (SESSION.get(sid, {}).get("clientid") or cid)
-
-next_labels = [
-    f"payment channel {c} clientid {cid_for_label}" for c in other
-] + [
-    "bandingkan dengan bulan sebelumnya",
-    "lihat detail by day",
-    "bulan ini",
-    "bulan kemarin",
-]
-
-return {
-    "reply": reply,
-    "suggestions": next_labels,
-    "actions": next_labels,
-    "choices": _mk_choices(next_labels),
-}
-
+        return {
+            "reply": reply,
+            "suggestions": next_labels,
+            "actions": next_labels,
+            "choices": _mk_choices(next_labels),
+        }
 
     except Exception as e:
         logger.exception("chat handler failed")
         return {
             "reply": f"Terjadi error di sisi server: **{type(e).__name__}**. Coba lagi ya.",
-            "suggestions":[], "actions":[], "choices":[]
+            "suggestions": [],
+            "actions": [],
+            "choices": [],
         }
-
 
 # ====== end /chat ======
 
