@@ -88,16 +88,7 @@
           <th>Merchant 1</th>
           <th>Merchant 2</th>
           <th>
-            Score
-            <span class="tip">i</span>
-            <div class="tooltip">
-              <b>Score</b> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
-              Di MVP ini nilainya = <i>Jaccard 30d</i>. Pada versi penuh, Score akan
-              menggabungkan:<br/>• Overlap user (Jaccard)<br/>• Perbedaan jam puncak (seasonality)<br/>• Perbedaan channel (synergy)<br/>• Risiko kegagalan (fail risk).
-            </div>
-          </th>
-          <th>
-            Jaccard 30d
+            Score Jaccard 30d
             <span class="tip">i</span>
             <div class="tooltip">
               <b>Jaccard 30d</b> mengukur irisan pengguna kedua merchant selama 30 hari:
@@ -126,7 +117,6 @@
         </select>
         <button id="aiInsightBtn" class="btn" disabled>Generate AI Insight</button>
         <button id="insightBtn" class="btn" disabled>Generate (Rule) Insight</button>
-        <button id="downloadBtn" class="btn" disabled>Download Audience CSV</button>
         <span class="muted">Pilih baris di tabel untuk mengaktifkan tombol.</span>
       </div>
 
@@ -171,20 +161,6 @@
       </ol>
       <p class="muted">Seasonal mode menghitung overlap hanya di rentang tanggal musim tersebut.</p>
     </div>
-  </div>
-
-  <!-- ===== Tambahan: AI Auto Insights (fitur baru, tidak mengubah yang lama) ===== -->
-  <div class="tab-section card">
-    <div class="top">
-      <h3>🧠 AI Auto Insights</h3>
-      <button class="btn" onclick="loadAutoInsights()">Refresh</button>
-    </div>
-    <table id="tblAuto">
-      <thead>
-        <tr><th>Merchant 1</th><th>Merchant 2</th><th>Season</th><th>Insight</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
   </div>
 
   <!-- ====== GEO-BASED RECOMMENDATIONS (DITAMBAHKAN DI BAWAH INSIGHT) ====== -->
