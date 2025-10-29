@@ -1492,8 +1492,8 @@ def _channel_suggestions(all_channels:List[Dict[str,Any]])->List[str]:
 SESSION: dict[str, dict] = {}
 
 def _get_sid(payload: dict) -> str:
-    # frontend kirim "sid" (random uuid) per user/browser
-    return (payload.get("sid") or "default").strip()
+    sid = (payload.get("sid") or "").strip()
+    return sid or "default"
 
 def _norm_channel_word(s: str | None) -> str | None:
     if not s: return None
@@ -1506,13 +1506,6 @@ def _norm_channel_word(s: str | None) -> str | None:
 def _mk_choices(labels: list[str]) -> list[dict]:
     # tombol yang menempelkan teks ke input saat diklik
     return [{"label": lab, "text": lab} for lab in labels]
-
-# ==== simple in-memory session context (TTL optional) ====
-SESSION: dict[str, dict] = {}
-
-def _get_sid(payload: dict) -> str:
-    # frontend kirim "sid" (random uuid) per user/browser
-    return (payload.get("sid") or "default").strip()
 
 def _norm_channel_word(s: str | None) -> str | None:
     if not s: return None
@@ -1569,11 +1562,12 @@ def chat(payload: Dict[str, Any] = Body(...)):
 
         # ---- jika user hanya ketik "qris"/"va"/"cc", ambil dari session
         if not cid and not year and not month and channel:
-            ctx = SESSION.get(sid) or {}
-            if ctx.get("clientid"):
+            ctx = SESSION.get(sid) or SESSION.get("default") or {}
+            if ctx.get("clientid") and ctx.get("year") and ctx.get("month"):
                 cid   = ctx["clientid"]
                 year  = ctx["year"]
                 month = ctx["month"]
+                logger.info("chat: reuse ctx for sid=%s -> cid=%s y=%s m=%s", sid, cid, year, month)
             else:
                 return {
                     "reply": "Aku butuh *clientid* dulu sebelum memilih channel. Contoh: `clientid 1001`.",
