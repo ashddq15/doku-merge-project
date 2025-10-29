@@ -1633,9 +1633,21 @@ def chat(payload: Dict[str, Any] = Body(...)):
         reply = f"{md_head}\n\n{ai_md}"
 
         # tombol lanjutan
-        other = [r["channel"] for r in current["by_channel"] if r["channel"] and r["channel"] != channel]
-        next_labels = [f"channel {c}" for c in other] + \
-                      ["bandingkan dengan bulan sebelumnya","lihat detail by day","bulan ini","bulan kemarin"]
+       other = [
+    r["channel"] for r in current["by_channel"]
+    if r["channel"] and r["channel"] != channel
+        ]
+
+        cid = (ctx.get("clientid") if "ctx" in locals() else cid)
+
+        next_labels = [
+            f"payment channel {c} clientid {cid}" for c in other
+        ] + [
+            "bandingkan dengan bulan sebelumnya",
+            "lihat detail by day",
+            "bulan ini",
+            "bulan kemarin"
+        ]
 
         return {
             "reply": reply,
