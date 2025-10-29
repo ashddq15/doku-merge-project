@@ -1249,191 +1249,300 @@ def scheduler_seed():
         c.commit()
     return {"ok": True, "msg": "Dummy merchant inserted."}
 
-# ---------- di app.py (ganti handler /chat) ----------
+# ====== Merge AI: /chat intent-aware monthly SR ======
 from fastapi import Body
-import re
-from collections import defaultdict
-import calendar
-from datetime import datetime
-import pytz
+from datetime import datetime, timedelta
+import calendar, json, re, math
+from typing import Optional, Tuple, Dict, Any, List
 
-# state ringan per IP (untuk demo)
-_SESSION_HINT = defaultdict(dict)
-
-_MONTH_ALIASES = {
-    "january":"01","jan":"01","januari":"01",
-    "february":"02","feb":"02","februari":"02",
-    "march":"03","mar":"03","maret":"03",
-    "april":"04","apr":"04",
-    "may":"05","mei":"05",
-    "june":"06","jun":"06","juni":"06",
-    "july":"07","jul":"07","juli":"07",
-    "august":"08","aug":"08","agustus":"08","agt":"08",
-    "september":"09","sep":"09",
-    "october":"10","oct":"10","oktober":"10","okt":"10",
-    "november":"11","nov":"11",
-    "december":"12","dec":"12","desember":"12","des":"12",
+MONTH_ID = {
+    # id
+    "january":1,"jan":1,"januari":1,
+    "february":2,"feb":2,"februari":2,
+    "march":3,"mar":3,"maret":3,
+    "april":4,"apr":4,
+    "may":5,"mei":5,
+    "june":6,"jun":6,"juni":6,
+    "july":7,"jul":7,"juli":7,
+    "august":8,"aug":8,"agustus":8,
+    "september":9,"sep":9,
+    "october":10,"oct":10,"oktober":10,"okt":10,
+    "november":11,"nov":11,
+    "december":12,"dec":12,"desember":12,"des":12,
 }
 
-def _parse_query(txt: str, ip: str):
-    t = txt.lower()
-    # client id
-    m = re.search(r"(clientid|client|merchant)\s*[:=]?\s*(\d{3,})", t)
-    client_id = int(m.group(2)) if m else _SESSION_HINT[ip].get("client_id")
+CHANNEL_ALIASES = {
+    "QRIS":["qris"],
+    "VA":["va","virtual account","virtualaccount"],
+    "CC":["cc","credit card","kartu kredit","creditcard"],
+}
 
-    # channel
-    m = re.search(r"(channel|payment|bayar)\s*(?:=|:)?\s*([a-z]+)", t)
-    channel = None
-    if m:
-        ch = m.group(2).upper()
-        # normalisasi
-        if ch in ("QR", "QRIS"): channel = "QRIS"
-        elif ch in ("CC","CARD","KARTU"): channel = "CC"
-        elif ch in ("VA","VIRTUALACCOUNT","VIRTUAL"): channel = "VA"
-        else: channel = ch
+def _prev_month(year:int, month:int)->Tuple[int,int]:
+    if month==1: return (year-1,12)
+    return (year, month-1)
 
-    # bulan/tahun
-    year = datetime.now().year
-    month = None
-    # angka bulan (10/2025, 2025-10)
-    m = re.search(r"(?:\D|^)(\d{1,2})\s*[\/\- ]\s*(20\d{2})", t)
+def _parse_intent(txt:str) -> Dict[str,Any]:
+    t = txt.lower().strip()
+
+    # clientid / merchant / client
+    cid = None
+    m = re.search(r"(?:clientid|client|merchant)\s*[:=]?\s*(\d+)", t)
+    if m: cid = int(m.group(1))
+    else:
+        m = re.search(r"\b(\d{4,})\b", t)  # fallback angka 4+ digit
+        if m: cid = int(m.group(1))
+
+    # month / year
+    now = datetime.now()
+    year = now.year; month = now.month
+    # nama bulan
+    for k,v in MONTH_ID.items():
+        if re.search(rf"\b{k}\b", t):
+            month = v
+            break
+    # angka MM-YYYY
+    m = re.search(r"(0?[1-9]|1[0-2])[-/ ](20\d{2})", t)
     if m:
         month = int(m.group(1)); year = int(m.group(2))
-    else:
-        for k,v in _MONTH_ALIASES.items():
-            if re.search(rf"\b{k}\b", t):
-                month = int(v); break
-    # fallback: kalau user tulis “bulan ini/okt” dsb sudah ketangkap; kalau tidak -> pakai bulan berjalan
-    if not month:
-        month = _SESSION_HINT[ip].get("month", datetime.now().month)
-        year  = _SESSION_HINT[ip].get("year",  datetime.now().year)
+    # kata “bulan ini/kemarin”
+    if re.search(r"bulan\s*(ini|current)", t):
+        year, month = now.year, now.month
+    if re.search(r"(bulan\s*kemarin|last month)", t):
+        year, month = _prev_month(now.year, now.month)
 
-    return client_id, channel, month, year
+    # channel (normalize)
+    channel = None
+    for can, aliases in CHANNEL_ALIASES.items():
+        for a in [can] + aliases:
+            if re.search(rf"\b{re.escape(a.lower())}\b", t):
+                channel = can
+                break
+        if channel: break
 
-def _month_range(year:int, month:int):
-    start = datetime(year, month, 1, 0, 0, 0, tzinfo=pytz.UTC)
-    last_day = calendar.monthrange(year, month)[1]
-    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=pytz.UTC)
+    # compare?
+    compare = bool(re.search(r"(bandingkan|compare|bulan sebelumnya|prev month|previous)", t))
+
+    return {"clientid": cid, "year": year, "month": month, "channel": channel, "compare": compare}
+
+def _month_window(y:int,m:int)->Tuple[datetime,datetime]:
+    start = datetime(y,m,1)
+    last_day = calendar.monthrange(y,m)[1]
+    end = datetime(y,m,last_day) + timedelta(days=1)  # exclusive
     return start, end
 
-def _available_channels(cur, client_id, start, end):
-    cur.execute("""
-      SELECT DISTINCT channel
-      FROM fact_tx
-      WHERE merchant_id = %s
-        AND paid_at BETWEEN %s AND %s
-    """, (client_id, start, end))
-    return [r[0] for r in cur.fetchall()]
+def _fetch_month_summary(cur, clientid:int, year:int, month:int, channel:Optional[str]=None) -> Dict[str,Any]:
+    start, end = _month_window(year, month)
 
-def _calc_sr(cur, client_id, channel, start, end):
+    # base filter
+    ch_where = " AND channel=%s " if channel else ""
+    ch_param = [channel] if channel else []
+
+    # totals
+    cur.execute(f"""
+      WITH base AS (
+        SELECT user_hash, amount, status, channel, date_trunc('day', paid_at) AS d
+        FROM fact_tx
+        WHERE merchant_id=%s AND paid_at >= %s AND paid_at < %s {ch_where}
+      )
+      SELECT
+        COUNT(*)                           AS total_tx,
+        COUNT(*) FILTER (WHERE status='SALE') AS success_tx,
+        COALESCE(SUM(amount),0)            AS gmv,
+        COUNT(DISTINCT user_hash)          AS unique_users
+      FROM base;
+    """, [clientid, start, end] + ch_param)
+    tot = dict(cur.fetchone())
+
+    # by channel (always, untuk saran)
     cur.execute("""
       WITH base AS (
-        SELECT status
+        SELECT channel, status, amount
         FROM fact_tx
-        WHERE merchant_id=%s
-          AND channel=%s
-          AND paid_at BETWEEN %s AND %s
-      ),
-      agg AS (
-        SELECT
-          SUM(CASE WHEN status IN ('SALE') THEN 1 ELSE 0 END) AS ok,
-          SUM(CASE WHEN status IN ('FAILED','CANCEL','TIMEOUT') THEN 1 ELSE 0 END) AS fail,
-          COUNT(*) AS total
-        FROM base
+        WHERE merchant_id=%s AND paid_at >= %s AND paid_at < %s
       )
-      SELECT ok, fail, total FROM agg;
-    """, (client_id, channel, start, end))
-    row = cur.fetchone() or (0,0,0)
-    ok, fail, total = [int(x or 0) for x in row]
-    sr = (ok/total*100.0) if total>0 else 0.0
-    return sr, ok, total
+      SELECT channel,
+             COUNT(*) AS total_tx,
+             COUNT(*) FILTER (WHERE status='SALE') AS success_tx,
+             COALESCE(SUM(amount),0) AS gmv
+      FROM base
+      GROUP BY channel
+      ORDER BY channel;
+    """, [clientid, start, end])
+    by_channel = [dict(r) for r in cur.fetchall()]
 
-def _fmt_sr_resp(merchant_name, month, year, channel, sr, ok, total):
-    mn = calendar.month_name[month]
-    return (
-      f"**MERGE** — Hasil untuk **{merchant_name}**\n"
-      f"**Periode**: **{mn} {year}**\n"
-      f"**Channel**: **{channel}**\n"
-      f"**Success Rate**: **{sr:.2f}%**  (**{ok}/{total}**)"
+    # by day (untuk UI detail/AI konteks)
+    cur.execute(f"""
+      WITH days AS (
+        SELECT generate_series(%s::date, (%s::date - interval '1 day'), interval '1 day') AS d
+      ),
+      base AS (
+        SELECT date_trunc('day', paid_at)::date AS d, status
+        FROM fact_tx
+        WHERE merchant_id=%s AND paid_at >= %s AND paid_at < %s {ch_where}
+      )
+      SELECT d::date AS day,
+             COUNT(b.*) AS total_tx,
+             COUNT(*) FILTER (WHERE b.status='SALE') AS success_tx
+      FROM days
+      LEFT JOIN base b USING (d)
+      GROUP BY 1 ORDER BY 1;
+    """, [start, end, clientid, start, end] + ch_param)
+    by_day = [dict(r) for r in cur.fetchall()]
+
+    # merchant name
+    cur.execute("SELECT COALESCE(NULLIF(name,''), merchant_id::text) FROM dim_merchant WHERE merchant_id=%s LIMIT 1", (clientid,))
+    merchant = (cur.fetchone() or [str(clientid)])[0]
+
+    sr = 0.0
+    if tot["total_tx"]:
+        sr = tot["success_tx"] / tot["total_tx"] * 100.0
+
+    return {
+        "merchant": merchant,
+        "clientid": clientid,
+        "year": year,
+        "month": month,
+        "channel": channel,          # bisa None
+        "totals": {
+            "total_tx": int(tot["total_tx"] or 0),
+            "success_tx": int(tot["success_tx"] or 0),
+            "gmv": int(tot["gmv"] or 0),
+            "unique_users": int(tot["unique_users"] or 0),
+            "success_rate_pct": round(sr, 2)
+        },
+        "by_channel": [
+            {
+              "channel": r["channel"],
+              "total_tx": int(r["total_tx"] or 0),
+              "success_tx": int(r["success_tx"] or 0),
+              "gmv": int(r["gmv"] or 0),
+              "success_rate_pct": round((r["success_tx"]/(r["total_tx"] or 1))*100.0, 2) if r["total_tx"] else 0.0
+            } for r in by_channel
+        ],
+        "by_day": [
+            {
+              "day": str(r["day"]),
+              "total_tx": int(r["total_tx"] or 0),
+              "success_tx": int(r["success_tx"] or 0),
+              "success_rate_pct": round(( (r["success_tx"] or 0) / (r["total_tx"] or 1) )*100.0, 2) if r["total_tx"] else 0.0
+            } for r in by_day
+        ]
+    }
+
+def _md_stat_block(s:Dict[str,Any])->str:
+    t = s["totals"]
+    head = f"**{s['merchant']}** • Periode **{calendar.month_name[s['month']]} {s['year']}**"
+    ch = f"\nChannel: **{s['channel']}**" if s.get("channel") else ""
+    body = (
+        f"{head}{ch}\n"
+        f"Success Rate: **{t['success_rate_pct']:.2f}%** "
+        f"({t['success_tx']}/{t['total_tx']})\n"
+        f"GMV: **Rp {t['gmv']:,}** • Unique Users: **{t['unique_users']:,}**"
     )
-def _prev_month(year: int, month: int):
-    """Mengembalikan bulan dan tahun sebelumnya"""
-    if month == 1:
-        return 12, year - 1
-    return month - 1, year
+    return body
+
+def _ai_summary(pair_payload:Dict[str,Any]) -> str:
+    """
+    pair_payload = {
+      "current": <summary dict>,           # wajib
+      "previous": <summary dict or None>,  # opsional
+    }
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or OpenAI is None:
+        # fallback rule-based singkat
+        cur = pair_payload["current"]["totals"]
+        note = []
+        if cur["success_rate_pct"] < 75: note.append("SR rendah — cek error rate dan jam spike.")
+        if cur["total_tx"] < 50: note.append("Volume kecil; lakukan kampanye akuisisi.")
+        base = " • ".join(note) if note else "Performa stabil. Lanjutkan optimasi kanal dominan."
+        return f"[Local] {_md_stat_block(pair_payload['current'])}\n\nRingkasan: {base}"
+
+    # prompt ringkas + data JSON
+    data_json = json.dumps(pair_payload, ensure_ascii=False)
+    sys = "You are a concise analytics assistant for payments. Write in Indonesian. Be crisp and actionable."
+    usr = f"""
+Berikut data ringkas transaksi (current & optional previous). Tugasmu:
+1) Berikan 2–3 poin insight utama (<= 50 kata total).
+2) Jika ada previous, sebutkan perubahan SR/volume secara singkat.
+3) Tutup dengan 1 rekomendasi praktis.
+
+DATA:
+{data_json}
+"""
+
+    client = OpenAI(api_key=api_key)
+    resp = client.chat.completions.create(
+        model=os.getenv("OPENAI_MODEL","gpt-4o-mini"),
+        messages=[{"role":"system","content":sys},{"role":"user","content":usr}],
+        temperature=0.4, max_tokens=220,
+    )
+    return resp.choices[0].message.content.strip()
+
+def _channel_suggestions(all_channels:List[Dict[str,Any]])->List[str]:
+    labels = []
+    for r in all_channels:
+        c = r["channel"]
+        sr = r["success_rate_pct"]
+        labels.append(f"channel {c} (SR {sr:.1f}%)")
+    if not labels: labels = ["channel QRIS","channel VA","channel CC"]
+    return labels
 
 @app.post("/chat")
-def chat(payload: dict = Body(...), request: Request = None):
-    ip = request.client.host if request else "local"
-    text = (payload.get("text") or "").strip()
-    if not text:
-        return {"reply": "Tulis pertanyaanmu ya. Contoh: `clientid 1001 channel QRIS bulan oktober`", "hints": []}
-
+def chat(payload: Dict[str, Any] = Body(...)):
+    """
+    Expects: { "text": "hi merge, sr clientid 1005 bulan oktober qris" }
+    Returns: { "reply": "<markdown>", "suggestions": ["...","..."] }
+    """
     try:
-        client_id, channel, month, year = _parse_query(text, ip)
-        if not client_id:
-            return {"reply": "Aku tidak menemukan *clientid*. Coba tulis seperti: `clientid 1001`.", "hints": []}
+        q = (payload.get("text") or "").strip()
+        if not q:
+            return {"reply":"(maaf, pesannya kosong)","suggestions":[]}
 
-        start, end = _month_range(year, month)
+        intent = _parse_intent(q)
+        cid = intent["clientid"]
+        if not cid:
+            return {
+                "reply":"Aku tidak menemukan *clientid*. Contoh: `clientid 1001`.",
+                "suggestions":["clientid 1001 bulan ini","clientid 1002 oktober"]
+            }
 
-        with conn() as c, c.cursor() as cur:
-            # nama merchant
-            cur.execute("SELECT COALESCE(NULLIF(name,''), merchant_id::text) FROM dim_merchant WHERE merchant_id=%s", (client_id,))
-            row = cur.fetchone()
-            if not row:
-                return {"reply": f"Client `{client_id}` belum terdaftar di `dim_merchant`.", "hints": []}
-            mname = row[0]
+        year, month = intent["year"], intent["month"]
+        channel = intent["channel"]
+        compare = intent["compare"]
 
-            # daftar channel yang ada di periode tsb
-            chans = _available_channels(cur, client_id, start, end)
-            # kalau user belum sebut channel -> minta pilih
-            if not channel:
-                _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
-                if not chans:
-                    return {"reply": f"Tidak ada transaksi untuk **{mname}** pada **{calendar.month_name[month]} {year}**.",
-                            "hints": []}
-                return {
-                    "reply": f"Untuk **{mname}** periode **{calendar.month_name[month]} {year}**, mau cek channel yang mana?",
-                    "hints": [f"channel {ch}" for ch in chans]
-                }
+        with conn() as c, c.cursor(cursor_factory=DictCursor) as cur:
+            cur_s = _fetch_month_summary(cur, cid, year, month, channel=channel)
+            prev_s = None
+            if compare:
+                py, pm = _prev_month(year, month)
+                prev_s = _fetch_month_summary(cur, cid, py, pm, channel=channel)
 
-            # user sebut channel, tapi tidak ada pada periode tsb
-            norm_chans = {ch.upper() for ch in (chans or []) if isinstance(ch, str)}
-            if chans and channel.upper() not in norm_chans:
-                _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year})
-                return {
-                    "reply": (f"Maaf, **{channel}** tidak ditemukan untuk **{mname}** pada "
-                              f"**{calendar.month_name[month]} {year}**. Pilih payment channel lain:"),
-                    "hints": [f"channel {ch}" for ch in chans]
-                }
+        # rangkai ringkasan + AI
+        md_head = _md_stat_block(cur_s)
+        ai_md = _ai_summary({"current": cur_s, "previous": prev_s})
 
-            # hitung SR (kalau chans kosong tapi user tetap minta channel tertentu, tetap hitung -> hasil 0)
-            sr, ok, total = _calc_sr(cur, client_id, channel, start, end)
+        # suggestions dinamis
+        sugg: List[str] = []
+        # tawarkan channel bila user tidak spesifik
+        if not channel:
+            sugg += _channel_suggestions(cur_s["by_channel"])
+        # aksi umum
+        sugg += ["bandingkan dengan bulan sebelumnya", "lihat detail by day"]
+        # ganti bulan cepat
+        sugg += ["bulan ini","bulan kemarin"]
 
-        # simpan context aktif
-        _SESSION_HINT[ip].update({"client_id": client_id, "month": month, "year": year, "channel": channel})
+        reply = f"{md_head}\n\n{ai_md}"
+        return {"reply": reply, "suggestions": sugg}
 
-        reply = _fmt_sr_resp(mname, month, year, channel, sr, ok, total)
-
-        # hints: bandingkan / detail / pilih channel lain
-        prev_m, prev_y = _prev_month(year, month)
-        hints = [
-            "bandingkan dengan bulan sebelumnya",
-            "lihat detail by day",
-        ]
-        # saran “pilih payment channel lain” hanya kalau memang ada alternatif lain
-        safe_chans = [c for c in (chans or []) if c and isinstance(c, str)]
-        alt = [ch for ch in safe_chans if ch.upper() != (channel or "").upper()]
-
-
-        if alt:
-            hints.append("pilih payment channel lain")
-
-        return {"reply": reply, "hints": hints}
-
-    except Exception:
+    except Exception as e:
         logger.exception("chat handler failed")
-        return {"reply": "Maaf, aku mengalami kendala memproses pertanyaanmu. Coba lagi sebentar ya.", "hints": []}
+        return {
+            "reply": f"Terjadi error di sisi server: **{type(e).__name__}**. Coba lagi ya.",
+            "suggestions":[]
+        }
+# ====== end /chat ======
+
 
 
 
@@ -1496,4 +1605,7 @@ def agent_sr(payload: dict = Body(...)):
               + ("• Per-channel:\n" + "\n".join(lines) if lines else "• Per-channel: (tidak ada data)")
             )
             return {"reply": reply, "data": {"overall":{"total":total,"success":success,"sr":sr}, "by_channel": bych}}
+
+
+
 
