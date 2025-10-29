@@ -320,55 +320,49 @@ function getMergeSid() {
     const k = 'merge_sid';
     let v = localStorage.getItem(k);
     if (!v) {
-      v = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random();
+      v = (crypto.randomUUID && crypto.randomUUID()) || (Date.now()+':'+Math.random());
       localStorage.setItem(k, v);
     }
     return v;
   }
 
   async function ask(q) {
-    if (inflight) return;
-    inflight = true;
-
     addMsg(q, 'user');
     const typing = addTyping();
-
     try {
       const r = await fetch('/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ sid: getMergeSid(), text: q })
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ text: q, sid: getMergeSid() })
       });
       const data = await r.json();
-
       typing.remove();
       addMsg(data.reply || '(tanpa balasan)', 'bot');
-
-      // Normalisasi hints/saran tombol dari server
-      // const hints =
-      //   data.hints
-      //   || data.suggestions
-      //   || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
-      // addHints(hints || []);
-       addHints(data.choices || data.suggestions || []);
+      // dukung dua nama: choices (objek) atau suggestions (string)
+      addHints(data.choices || data.suggestions || []);
     } catch (e) {
       typing.remove();
       addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
-    } finally {
-      inflight = false;
     }
   }
-  function addHints(labels) {
+
+  function addHints(items) {
     const wrap = document.getElementById('hint-bar') || makeHintBar();
     wrap.innerHTML = '';
-    (labels || []).forEach(lab => {
-      const b = document.createElement('button');
-      b.className = 'merge-chip';
-      b.textContent = lab;               // contoh: "channel QRIS"
-      b.onclick = () => ask(lab);        // <<< kirim persis teks chip
-      wrap.appendChild(b);
+    (items || []).forEach(it => {
+      // it bisa string ATAU {label, text}
+      const label = (typeof it === 'string') ? it : (it.label ?? it.text ?? '');
+      const outgoing = (typeof it === 'string') ? it : (it.text ?? it.label ?? '');
+      if (!label || !outgoing) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'merge-chip';
+      btn.textContent = label;
+      btn.onclick = () => ask(outgoing);   // <<< kirim “text” ke /chat
+      wrap.appendChild(btn);
     });
   }
+
   function makeHintBar(){
     const el = document.createElement('div');
     el.id = 'hint-bar';
