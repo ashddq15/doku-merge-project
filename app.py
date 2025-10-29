@@ -1422,7 +1422,10 @@ def chat(payload: dict = Body(...), request: Request = None):
             "lihat detail by day",
         ]
         # saran “pilih payment channel lain” hanya kalau memang ada alternatif lain
-        alt = [ch for ch in (chans or []) if ch.upper() != (channel or "").upper()]
+        safe_chans = [c for c in (chans or []) if c and isinstance(c, str)]
+        alt = [ch for ch in safe_chans if ch.upper() != (channel or "").upper()]
+
+
         if alt:
             hints.append("pilih payment channel lain")
 
