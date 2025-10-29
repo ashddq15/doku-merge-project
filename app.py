@@ -1143,7 +1143,7 @@ def chat_interactive(req: dict):
       WITH tx AS (
         SELECT status
         FROM fact_tx
-        WHERE client_id = %s
+        WHERE merchant_id = %s
           AND channel = %s
           AND paid_at::date BETWEEN %s AND %s
       )

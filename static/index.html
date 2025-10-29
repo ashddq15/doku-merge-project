@@ -218,7 +218,7 @@
     </table>
     <div id="merge-chat-btn" style="
   position: fixed; bottom: 20px; right: 20px;
-  background: #1e3a8a; color: white;
+  background: #e11d48; color: white;
   border-radius: 50%; width: 55px; height: 55px;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.3);
@@ -232,17 +232,27 @@
   width: 320px; height: 400px; background: white;
   border-radius: 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);
   overflow: hidden; flex-direction: column;
+  font-family: 'Inter', sans-serif;
 ">
   <div style="background:#e11d48; color:white; padding:10px;">
-    <strong>MERGE AI</strong> 🧠
+    <strong>MERGE AI</strong> 🤖
   </div>
-  <div id="chat-body" style="flex:1; padding:10px; overflow-y:auto; font-size:14px;"></div>
-  <div style="display:flex; border-top:1px solid #3c3c3c;">
-    <input id="chat-input" placeholder="Tanyakan ke Merge..." style="flex:1; border:none; padding:10px;">
-    <button id="chat-send" style="background:#e11d48; color:white; border:none; padding:10px 14px;">➤</button>
+
+  <!-- Area pesan -->
+  <div id="chat-body" style="
+    flex:1; padding:10px; overflow-y:auto;
+    font-size:14px; color:#111; background:#fff;
+  "></div>
+
+  <!-- Input -->
+  <div style="display:flex; border-top:1px solid #ccc;">
+    <input id="chat-input" placeholder="Tanyakan ke Merge..." 
+      style="flex:1; border:none; padding:10px; color:#111; outline:none;">
+    <button id="chat-send"
+      style="background:#e11d48; color:white; border:none;
+      padding:10px 14px; cursor:pointer;">Kirim</button>
   </div>
 </div>
-  </div>
 
 <script>
    const btn = document.getElementById('merge-chat-btn');
