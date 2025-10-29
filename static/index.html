@@ -88,6 +88,15 @@
           <th>Merchant 1</th>
           <th>Merchant 2</th>
           <th>
+            Score
+            <span class="tip">i</span>
+            <div class="tooltip">
+              <b>Score</b> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+              Di MVP ini nilainya = <i>Jaccard 30d</i>. Pada versi penuh, Score akan
+              menggabungkan:<br/>• Overlap user (Jaccard)<br/>• Perbedaan jam puncak (seasonality)<br/>• Perbedaan channel (synergy)<br/>• Risiko kegagalan (fail risk).
+            </div>
+          </th>
+          <th>
             Jaccard 30d
             <span class="tip">i</span>
             <div class="tooltip">
@@ -460,6 +469,7 @@ async function loadRecs(){
       <td>${i+1}</td>
       <td>${rec.m1_name}</td>
       <td>${rec.m2_name}</td>
+      <td>${Number(rec.score).toFixed(4)}</td>
       <td>${Number(rec.jaccard_30d).toFixed(4)}</td>`;
     tr.onclick = ()=> showDetail(rec.m1, rec.m1_name, rec.m2, rec.m2_name);
     tb.appendChild(tr);
