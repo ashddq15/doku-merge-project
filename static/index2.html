@@ -1054,15 +1054,16 @@ collabMode.addEventListener('change', () => {
   seasonPicker.style.display = isSeasonal ? 'inline-block':'none';
 });
 
-// Load seasons
-fetch('/api/seasons').then(r=>r.json()).then(list=>{
+// Load seasons - FIXED
+fetch('/api/seasons').then(r=>r.json()).then(response=>{
+  const list = Array.isArray(response) ? response : (response.seasons || []);
   list.forEach(s=>{
     const opt=document.createElement('option');
     opt.value=s.season_id;
     opt.textContent=`${s.season_name} (${s.start_date} to ${s.end_date})`;
     seasonPicker.appendChild(opt);
   });
-});
+}).catch(err => console.error('Error loading seasons:', err));
 
 collabLoad.addEventListener('click', async ()=>{
   const mode = collabMode.value;
@@ -1070,7 +1071,8 @@ collabLoad.addEventListener('click', async ()=>{
   try {
     if (mode==='normal') {
       const res = await fetch('/api/collaboration/top');
-      const data= await res.json();
+      const response = await res.json();
+      const data = Array.isArray(response) ? response : (response.rows || response.data || []);
       collabTable.innerHTML='';
       data.forEach((r,i)=>{
         const tr = collabTable.insertRow();
@@ -1093,7 +1095,8 @@ collabLoad.addEventListener('click', async ()=>{
         return;
       }
       const res = await fetch(`/api/collaboration/seasonal?season_id=${sid}`);
-      const data= await res.json();
+      const response = await res.json();
+      const data = Array.isArray(response) ? response : (response.rows || response.data || []);
       collabTable.innerHTML='';
       seasonalTable.innerHTML='';
       
@@ -1124,15 +1127,16 @@ collabLoad.addEventListener('click', async ()=>{
   }
 });
 
-// ============== Geo Table ==============
+// ============== Geo Table - FIXED ==============
 const geoTable = document.getElementById('geo-table').getElementsByTagName('tbody')[0];
-const geoLoad  = document.getElementById('geo-load');
+const geoLoad = document.getElementById('geo-load');
 
 geoLoad.addEventListener('click', async ()=>{
   geoTable.innerHTML='<tr><td colspan="6" style="text-align:center">Loading...</td></tr>';
   try {
     const res = await fetch('/api/collaboration/geographic');
-    const data= await res.json();
+    const response = await res.json();
+    const data = Array.isArray(response) ? response : (response.rows || response.data || []);
     geoTable.innerHTML='';
     data.forEach((r,i)=>{
       const tr = geoTable.insertRow();
