@@ -1138,6 +1138,7 @@ function getMergeSid() {
   }
 
 btn.onclick = ()=> win.style.display = (win.style.display==='none'?'flex':'none');
+document.getElementById('chat-close-btn').onclick = ()=> win.style.display = 'none';
 send.onclick = ()=> {
   const q = (input.value||'').trim();
   if (!q) return;
