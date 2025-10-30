@@ -1,0 +1,1435 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>DOKU CMCI – Merchant Collaboration Intelligence</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    /* ========== DOKU Design System ========== */
+    :root {
+      --doku-red: #E31E24;
+      --doku-dark-red: #C41A1F;
+      --doku-bg: #F5F5F5;
+      --doku-sidebar: #FFFFFF;
+      --doku-card: #FFFFFF;
+      --doku-border: #E0E0E0;
+      --doku-text-primary: #2D2D2D;
+      --doku-text-secondary: #666666;
+      --doku-text-muted: #999999;
+      --doku-hover: #F9F9F9;
+      --doku-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      --green: #22c55e;
+      --yellow: #facc15;
+      --blue: #3b82f6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--doku-bg);
+      color: var(--doku-text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ========== Layout ========== */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ========== Sidebar ========== */
+    .sidebar {
+      width: 256px;
+      background: var(--doku-sidebar);
+      border-right: 1px solid var(--doku-border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--doku-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-box {
+      width: 40px;
+      height: 40px;
+      background: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    
+    .logo-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+
+    .logo-title {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .logo-subtitle {
+      font-size: 11px;
+      color: var(--doku-text-muted);
+    }
+
+    .sidebar-menu {
+      flex: 1;
+      padding: 16px 0;
+    }
+
+    .menu-section {
+      margin-bottom: 24px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      color: var(--doku-text-secondary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .menu-item:hover {
+      background: var(--doku-hover);
+      color: var(--doku-text-primary);
+    }
+
+    .menu-item.active {
+      background: rgba(227, 30, 36, 0.08);
+      color: var(--doku-red);
+      border-right: 3px solid var(--doku-red);
+    }
+
+    .menu-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--doku-border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .user-email {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--doku-text-muted);
+    }
+
+    /* ========== Main Content ========== */
+    .main-content {
+      flex: 1;
+      margin-left: 256px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ========== Top Navbar ========== */
+    .top-navbar {
+      background: white;
+      border-bottom: 1px solid var(--doku-border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--doku-text-muted);
+      font-size: 13px;
+    }
+
+    .breadcrumb-current {
+      color: var(--doku-text-primary);
+      font-weight: 600;
+    }
+
+    .navbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .notification-badge {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: var(--doku-hover);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .notification-badge:hover {
+      background: var(--doku-border);
+    }
+
+    .notification-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: var(--doku-red);
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+
+    .language-selector {
+      padding: 6px 12px;
+      border: 1px solid var(--doku-border);
+      border-radius: 6px;
+      background: white;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* ========== Content Area ========== */
+    .content-area {
+      padding: 24px 32px;
+      flex: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .page-description {
+      font-size: 14px;
+      color: var(--doku-text-secondary);
+      line-height: 1.6;
+    }
+
+    h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    /* ========== How to Use Banner ========== */
+    .how-to-use {
+      background: linear-gradient(135deg, #E31E24 0%, #C41A1F 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: var(--doku-shadow);
+    }
+
+    .how-to-use h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .how-to-use ol {
+      margin-left: 20px;
+      line-height: 1.8;
+    }
+
+    .how-to-use li {
+      margin-bottom: 8px;
+    }
+
+    .how-to-use strong {
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    .how-to-use code {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+
+    /* ========== Cards ========== */
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--doku-shadow);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    /* ========== Grid Layout ========== */
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+
+    /* ========== Tables ========== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    thead {
+      background: var(--doku-hover);
+    }
+
+    th {
+      padding: 14px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--doku-text-secondary);
+      border-bottom: 1px solid var(--doku-border);
+      position: relative;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--doku-border);
+      font-size: 14px;
+    }
+
+    tbody tr:hover {
+      background: var(--doku-hover);
+      cursor: pointer;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* ========== Buttons ========== */
+    .btn {
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn:hover {
+      background: var(--doku-dark-red);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ========== Pills/Badges ========== */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(227, 30, 36, 0.1);
+      border: 1px solid var(--doku-border);
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-right: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .pill.good {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ========== Tooltip ========== */
+    .tip {
+      display: inline-block;
+      margin-left: 6px;
+      background: var(--doku-hover);
+      border: 1px solid var(--doku-border);
+      width: 16px;
+      height: 16px;
+      line-height: 14px;
+      text-align: center;
+      border-radius: 50%;
+      font-size: 10px;
+      color: var(--doku-text-muted);
+      cursor: help;
+    }
+
+    .tip:hover + .tooltip {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tooltip {
+      position: absolute;
+      z-index: 5;
+      top: 140%;
+      left: 0;
+      width: 280px;
+      background: white;
+      border: 1px solid var(--doku-border);
+      padding: 12px;
+      border-radius: 8px;
+      color: var(--doku-text-primary);
+      font-size: 12px;
+      opacity: 0;
+      transition: 0.2s;
+      transform: translateY(-6px);
+      box-shadow: var(--doku-shadow);
+    }
+
+    /* ========== Row/Top Layouts ========== */
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .muted {
+      color: var(--doku-text-muted);
+    }
+
+    /* ========== Merchant Detail Blocks ========== */
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .block {
+      border: 1px solid var(--doku-border);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--doku-hover);
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--doku-text-secondary);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .kpi {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--doku-text-primary);
+    }
+
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 13px;
+      color: var(--doku-text-secondary);
+    }
+
+    .spark {
+      display: flex;
+      gap: 2px;
+      margin-top: 6px;
+    }
+
+    .bar {
+      height: 24px;
+      width: 4px;
+      border-radius: 2px;
+      background: var(--doku-border);
+    }
+
+    .bar.on {
+      background: var(--doku-red);
+    }
+
+    /* ========== Selects ========== */
+    select {
+      background: white;
+      color: var(--doku-text-primary);
+      border: 1px solid var(--doku-border);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* ========== Insight Box ========== */
+    #insightBox {
+      line-height: 1.6;
+      color: var(--doku-text-primary);
+    }
+
+    .insight .lead {
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--doku-text-primary);
+    }
+
+    .insight .para {
+      margin: 8px 0;
+      color: var(--doku-text-secondary);
+    }
+
+    .insight .idea {
+      border: 1px solid var(--doku-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+      background: var(--doku-hover);
+    }
+
+    .insight .idea strong {
+      color: var(--doku-red);
+    }
+
+    /* ========== Chat Window ========== */
+    #merge-chat-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(227, 30, 36, 0.3);
+      z-index: 1000;
+      transition: all 0.3s;
+    }
+
+    #merge-chat-btn:hover {
+      background: var(--doku-dark-red);
+      transform: scale(1.05);
+    }
+
+    #merge-chat-window {
+      position: fixed;
+      bottom: 90px;
+      right: 24px;
+      width: 380px;
+      height: 520px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      display: none;
+      flex-direction: column;
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    #merge-chat-window.show {
+      display: flex;
+    }
+
+    .chat-header {
+      background: var(--doku-red);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-header-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .chat-close {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    .chat-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    #chat-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: var(--doku-bg);
+    }
+
+    .chat-row {
+      margin-bottom: 12px;
+      display: flex;
+    }
+
+    .chat-row.user {
+      justify-content: flex-end;
+    }
+
+    .chat-bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .chat-row.user .chat-bubble {
+      background: var(--doku-red);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-row.ai .chat-bubble {
+      background: white;
+      color: var(--doku-text-primary);
+      border: 1px solid var(--doku-border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-footer {
+      border-top: 1px solid var(--doku-border);
+      padding: 12px;
+      background: white;
+    }
+
+    #merge-chat-form {
+      display: flex;
+      gap: 8px;
+    }
+
+    #chat-input {
+      flex: 1;
+      border: 1px solid var(--doku-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    #chat-input:focus {
+      outline: none;
+      border-color: var(--doku-red);
+    }
+
+    #chat-send {
+      background: var(--doku-red);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    #chat-send:hover {
+      background: var(--doku-dark-red);
+    }
+
+    #chat-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ========== Responsive ========== */
+    @media (max-width: 1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+      
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      
+      .main-content {
+        margin-left: 0;
+      }
+      
+      .content-area {
+        padding: 16px;
+      }
+
+      #merge-chat-window {
+        width: calc(100% - 32px);
+        right: 16px;
+        left: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-box">
+          <img src="logodoku.png" alt="DOKU Logo">
+        </div>
+        <div class="logo-text">
+          <div class="logo-title">DOKU</div>
+          <div class="logo-subtitle">CMCI</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-menu">
+        <div class="menu-section">
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🏠</span>
+            <span>Dashboard</span>
+          </a>
+          <a href="#" class="menu-item">
+            <span class="menu-icon">📧</span>
+            <span>Email Blast</span>
+          </a>
+        </div>
+
+        <div class="menu-section">
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🔗</span>
+            <span>Integrations</span>
+          </a>
+          <a href="#" class="menu-item">
+            <span class="menu-icon">🔔</span>
+            <span>HTTP Notifications</span>
+          </a>
+          <a href="#" class="menu-item active">
+            <span class="menu-icon">📊</span>
+            <span>CMCI Analytics</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-email">ms@doku.com</div>
+          <div class="user-role">DOKU MS</div>
+        </div>
+        <div style="cursor: pointer;">⋮</div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Navbar -->
+      <nav class="top-navbar">
+        <div class="breadcrumb">
+          <span>CMCI Analytics</span>
+        </div>
+        <div class="navbar-actions">
+          <div class="notification-badge">
+            🔔
+            <span class="notification-dot"></span>
+          </div>
+          <select class="language-selector">
+            <option>English</option>
+          </select>
+        </div>
+      </nav>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <div class="page-header">
+          <h1>Merchant Collaboration Intelligence Center</h1>
+          <p class="page-description">
+            Platform analytics untuk mengidentifikasi peluang kolaborasi antar merchant, 
+            memprediksi dampak musiman (seasonal), dan menganalisis distribusi geografis 
+            untuk meningkatkan success rate dan volume transaksi.
+          </p>
+        </div>
+
+        <!-- Season Selector -->
+        <div class="card">
+          <div class="top">
+            <h3>Season Configuration</h3>
+            <div class="row">
+              <label class="muted">Season&nbsp;</label>
+              <select id="seasonSel">
+                <option value="auto">Auto (current)</option>
+                <option value="all">All (30d baseline)</option>
+              </select>
+              <span id="seasonBadge" class="pill"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommendations Table -->
+        <div class="card">
+          <h3>Top Collaboration Recommendations</h3>
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Merchant 1</th>
+                <th>Merchant 2</th>
+                <th>
+                  Score
+                  <span class="tip">i</span>
+                  <div class="tooltip">
+                    <b>Score</b> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+                    Di MVP ini nilainya = <i>Jaccard 30d</i>. Pada versi penuh, Score akan
+                    menggabungkan:<br/>• Overlap user (Jaccard)<br/>• Perbedaan jam puncak (seasonality)<br/>• Perbedaan channel (synergy)<br/>• Risiko kegagalan (fail risk).
+                  </div>
+                </th>
+                <th>
+                  Jaccard 30d
+                  <span class="tip">i</span>
+                  <div class="tooltip">
+                    <b>Jaccard 30d</b> mengukur irisan pengguna kedua merchant selama 30 hari:
+                    <br/><code>|A ∩ B| / (|A| + |B| − |A ∩ B|)</code><br/>
+                    Semakin besar nilainya, semakin banyak pengguna yang sama di kedua merchant.
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="grid">
+          <div class="card">
+            <div class="top">
+              <h3 id="pairTitle">Pair Detail</h3>
+              <div id="tags"></div>
+            </div>
+
+            <div class="row" style="margin-bottom:12px">
+              <select id="horizonSel">
+                <option value="next_month">Next month</option>
+                <option value="next_week">Next week</option>
+              </select>
+              <button id="aiInsightBtn" class="btn" disabled>AI Insight</button>
+              <button id="insightBtn" class="btn" disabled>Rule Insight</button>
+              <button id="downloadBtn" class="btn" disabled>Download CSV</button>
+            </div>
+
+            <!-- Merchant Details -->
+            <div class="cols" id="detailCols" style="display:none">
+              <div class="block">
+                <div class="label">Merchant A</div>
+                <div class="kpi" id="aName">-</div>
+                <div class="label" style="margin-top:8px">Peak Hours (Top 3)</div>
+                <ul class="list" id="aHours"></ul>
+                <div class="label" style="margin-top:8px">Channel Share</div>
+                <ul class="list" id="aChannels"></ul>
+                <div class="label" style="margin-top:8px">Distribusi Jam (24)</div>
+                <div id="aSpark" class="spark"></div>
+              </div>
+              <div class="block">
+                <div class="label">Merchant B</div>
+                <div class="kpi" id="bName">-</div>
+                <div class="label" style="margin-top:8px">Peak Hours (Top 3)</div>
+                <ul class="list" id="bHours"></ul>
+                <div class="label" style="margin-top:8px">Channel Share</div>
+                <ul class="list" id="bChannels"></ul>
+                <div class="label" style="margin-top:8px">Distribusi Jam (24)</div>
+                <div id="bSpark" class="spark"></div>
+              </div>
+            </div>
+
+            <!-- Insight Box -->
+            <div id="insightBox" class="block" style="margin-top:12px;display:none">
+              <div id="insightTitle" class="label">Insight</div>
+              <div id="insightText">-</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>How to Use</h3>
+            <ol>
+              <li>Pilih <b>Season</b> (Auto = season aktif; All = baseline 30 hari).</li>
+              <li>Klik baris rekomendasi → lihat detail & insight.</li>
+              <li>Gunakan <b>AI Insight</b> untuk ide kampanye berbasis data.</li>
+              <li>Tekan <b>Download CSV</b> untuk user A yang belum belanja di B.</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- AI Auto Insights -->
+        <div class="card">
+          <div class="top">
+            <h3>🧠 AI Auto Insights</h3>
+            <button class="btn" onclick="loadAutoInsights()">Refresh</button>
+          </div>
+          <table id="tblAuto">
+            <thead>
+              <tr>
+                <th>Merchant 1</th>
+                <th>Merchant 2</th>
+                <th>Season</th>
+                <th>Insight</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Geo Recommendations -->
+        <div class="card">
+          <div class="top">
+            <h3>📍 Geo-based Recommendations</h3>
+            <div class="row">
+              <label class="muted">City&nbsp;</label>
+              <select id="citySel">
+                <option value="Jakarta">Jakarta</option>
+                <option value="Bandung">Bandung</option>
+                <option value="Surabaya">Surabaya</option>
+                <option value="Medan">Medan</option>
+                <option value="Denpasar">Denpasar</option>
+              </select>
+              <button class="btn" id="geoRefreshBtn">Refresh</button>
+            </div>
+          </div>
+          <table id="tblGeo">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Merchant 1</th>
+                <th>Merchant 2</th>
+                <th>Geo Score</th>
+                <th>Distance (km)</th>
+                <th>City</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Chat Button & Window -->
+  <button id="merge-chat-btn">💬</button>
+  <div id="merge-chat-window">
+    <div class="chat-header">
+      <div class="chat-header-title">Merge AI Assistant</div>
+      <button class="chat-close" id="chat-close-btn">×</button>
+    </div>
+    <div id="chat-body"></div>
+    <div class="chat-footer">
+      <form id="merge-chat-form">
+        <input 
+          id="chat-input" 
+          type="text" 
+          placeholder="Ask me anything..." 
+          autocomplete="off"
+        />
+        <button id="chat-send" type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+
+  const btn   = document.getElementById('merge-chat-btn');
+const win   = document.getElementById('merge-chat-window');
+const body  = document.getElementById('chat-body');
+const input = document.getElementById('chat-input');
+const send  = document.getElementById('chat-send');
+const form = document.getElementById('merge-chat-form');     
+  
+
+function addMsg(text, who='user') {
+  const div = document.createElement('div');
+  div.className = who === 'user'
+    ? 'chat-row user'
+    : 'chat-row bot';
+  // bold markdown mini
+  div.innerHTML = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addTyping() {
+  const d = document.createElement('div');
+  d.className = 'chat-row bot typing';
+  d.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+  body.appendChild(d);
+  body.scrollTop = body.scrollHeight;
+  return d;
+}
+function addHints(hints) {
+  if (!hints || !hints.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'hint-wrap';
+  hints.forEach(h=>{
+    const b = document.createElement('button');
+    b.className = 'hint';
+    b.textContent = h;
+    b.onclick = ()=> {
+      // jika user pilih "pilih payment channel lain", minta ulang channel
+      if (h === 'pilih payment channel lain') {
+        ask('pilih channel');  // backend akan jawab dengan daftar channel periode aktif
+      } else {
+        input.value = h;
+        send.click();
+      }
+    };
+    wrap.appendChild(b);
+  });
+  body.appendChild(wrap);
+  body.scrollTop = body.scrollHeight;
+}
+// --- SID tetap per browser ---
+ const MERGE_SID = (() => {
+    const k = 'merge_sid';
+    let v = localStorage.getItem(k);
+    if (!v) { v = crypto.randomUUID(); localStorage.setItem(k, v); }
+    return v;
+  })();
+
+  // Hindari double-call saat user spam klik/enter
+  let inflight = false;
+function getMergeSid() {
+    const k = 'merge_sid';
+    let v = localStorage.getItem(k);
+    if (!v) {
+      v = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random();
+      localStorage.setItem(k, v);
+    }
+    return v;
+  }
+  async function ask(q) {
+    if (inflight) return;
+    inflight = true;
+
+    addMsg(q, 'user');
+    const typing = addTyping();
+
+    try {
+      const r = await fetch('/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ sid: getMergeSid(), text: q })
+      });
+      const data = await r.json();
+
+      typing.remove();
+      addMsg(data.reply || '(tanpa balasan)', 'bot');
+
+      // Normalisasi hints/saran tombol dari server
+      const hints =
+        data.hints
+        || data.suggestions
+        || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
+      addHints(hints || []);
+    } catch (e) {
+      typing.remove();
+      addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
+    } finally {
+      inflight = false;
+    }
+  }
+
+  // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
+  
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = (input.value || '').trim();
+      if (v) ask(v);
+      input.value = '';
+    });
+  }
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const v = (input.value || '').trim();
+      if (v) ask(v);
+      input.value = '';
+    });
+  }
+
+btn.onclick = ()=> win.style.display = (win.style.display==='none'?'flex':'none');
+send.onclick = ()=> {
+  const q = (input.value||'').trim();
+  if (!q) return;
+  input.value = '';
+  ask(q);
+};
+input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ send.click(); }});
+
+// gaya kecil
+const css = document.createElement('style');
+css.textContent = `
+.chat-row{margin:8px 0; line-height:1.4}
+.chat-row.user{ text-align:right; }
+.chat-row.user{ color:#111 }
+.chat-row.bot{ color:#222 }
+.hint-wrap{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap }
+.hint{ background:#ffe2e6; border:1px solid #e11d48; color:#b10e31; border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer }
+.hint:hover{ background:#ffd4db }
+.typing .dot{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:#999; animation:b 1s infinite alternate }
+.typing .dot:nth-child(2){ animation-delay:.2s }
+.typing .dot:nth-child(3){ animation-delay:.4s }
+@keyframes b { from{opacity:.3; transform:translateY(0)} to{opacity:1; transform:translateY(-2px)} }
+`;
+document.head.appendChild(css);
+const API = location.origin.replace(/\/app$/, ''); // base API
+let NEXT_HOLIDAY = null;
+
+function percent(x){ return (Number(x||0)*100).toFixed(1) + '%' }
+function top3Hours(arr){
+  if(!arr || !arr.length) return []
+  const tmp = arr.map((v,i)=>({h:i,v:+v||0})).sort((a,b)=>b.v-a.v).slice(0,3);
+  return tmp.map(x=>`${x.h}:00 (${percent(x.v)})`);
+}
+function fillList(ul, items){
+  ul.innerHTML = ''; items.forEach(t=>{const li=document.createElement('li');li.textContent=t;ul.appendChild(li);});
+}
+function spark(container, arr){
+  container.innerHTML = '';
+  const max = Math.max(...arr.map(x=>+x||0), 0.0001);
+  arr.forEach(v=>{
+    const b=document.createElement('div'); b.className='bar on';
+    b.style.height = (8 + (v/max)*24)+'px';
+    container.appendChild(b);
+  });
+}
+function pills(meta){
+  const wrap = document.getElementById('tags');
+  wrap.innerHTML = '';
+  if(!meta) return;
+  const mk = (t, good=false)=>{const s=document.createElement('span');s.className='pill'+(good?' good':'');s.textContent=t;return s;}
+  wrap.appendChild(mk(`Score ${Number(meta.score||0).toFixed(4)}`, true));
+  wrap.appendChild(mk(`Jaccard ${Number(meta.jac||0).toFixed(4)}`));
+}
+
+async function loadSeasons(){
+  const res = await fetch(`${API}/seasons`);
+  const j = await res.json();
+  const sel = document.getElementById('seasonSel');
+  (j.seasons||[]).forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = `custom:${s.season_name}`;
+    opt.textContent = s.season_name;
+    sel.appendChild(opt);
+  });
+  const badge = document.getElementById('seasonBadge');
+  if (j.current){
+    badge.textContent = `Current: ${j.current.season_name} (${j.current.start_date} → ${j.current.end_date})`;
+    sel.value = 'auto';
+  } else {
+    badge.textContent = 'No current season';
+    sel.value = 'all';
+  }
+}
+
+async function loadNextHoliday(){
+  try{
+    const r = await fetch(`${API}/next_holiday`);
+    if(r.ok) NEXT_HOLIDAY = await r.json();
+    else NEXT_HOLIDAY = null;
+  }catch{ NEXT_HOLIDAY = null; }
+}
+function holidayLine(){
+  if(!NEXT_HOLIDAY) return '';
+  const d = NEXT_HOLIDAY;
+  return ` — Next holiday: ${d.holi_name} (${d.holi_date}) D-${d.days_left}`;
+}
+
+async function loadRecs(){
+  const sel = document.getElementById('seasonSel').value;
+  let url = `${API}/recommendations?top=5`;  
+  if (sel === 'auto') url += `&mode=auto`;
+  else if (sel === 'all') url += `&mode=all`;
+  else if (sel.startsWith('custom:')){
+    const name = encodeURIComponent(sel.split(':')[1]);
+    url += `&mode=custom&season=${name}`;
+  }
+  const r = await fetch(url);
+  const j = await r.json();
+  const data = j.rows || j || [];
+  const tb = document.querySelector('#tbl tbody');
+  tb.innerHTML = '';
+  data.forEach((rec,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${rec.m1_name}</td>
+      <td>${rec.m2_name}</td>
+      <td>${Number(rec.score).toFixed(4)}</td>
+      <td>${Number(rec.jaccard_30d).toFixed(4)}</td>`;
+    tr.onclick = ()=> showDetail(rec.m1, rec.m1_name, rec.m2, rec.m2_name);
+    tb.appendChild(tr);
+  });
+}
+
+let currentPair = null;
+
+async function showDetail(m1, m1n, m2, m2n) {
+  currentPair = {m1, m1n, m2, m2n};
+  document.getElementById('insightBox').style.display='none';
+  const res = await fetch(`${API}/pair/${m1}/${m2}/detail`);
+  const d = await res.json();
+
+  document.getElementById('pairTitle').innerText = `${d.m1.name} × ${d.m2.name}`;
+  pills({score:d.metrics.score, jac:d.metrics.jaccard_30d});
+
+  // isi kolom A
+  document.getElementById('aName').textContent = d.m1.name;
+  fillList(document.getElementById('aHours'), top3Hours(d.m1.hour_hist));
+  const aCh = Object.entries(d.m1.channel_share||{}).map(([k,v])=>`${k}: ${percent(v)}`);
+  fillList(document.getElementById('aChannels'), aCh);
+  spark(document.getElementById('aSpark'), (d.m1.hour_hist||[]).map(Number));
+
+  // isi kolom B
+  document.getElementById('bName').textContent = d.m2.name;
+  fillList(document.getElementById('bHours'), top3Hours(d.m2.hour_hist));
+  const bCh = Object.entries(d.m2.channel_share||{}).map(([k,v])=>`${k}: ${percent(v)}`);
+  fillList(document.getElementById('bChannels'), bCh);
+  spark(document.getElementById('bSpark'), (d.m2.hour_hist||[]).map(Number));
+
+  document.getElementById('detailCols').style.display='grid';
+  document.getElementById('downloadBtn').disabled = false;
+  document.getElementById('insightBtn').disabled = false;
+  document.getElementById('aiInsightBtn').disabled = false;
+}
+
+async function downloadCSV() {
+  if (!currentPair) return;
+  const res = await fetch(`${API}/audience?m1=${currentPair.m1}&m2=${currentPair.m2}&winA=30d&winB=90d`);
+  const j = await res.json();
+  const rows = ['user_hash', ...j.users].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows], {type:'text/csv'}));
+  a.download = `${currentPair.m1n || currentPair.m1}__to__${currentPair.m2n || currentPair.m2}_audience.csv`;
+  a.click();
+}
+
+/* ======== INSIGHT RENDERER (rapi & mudah dibaca) ======== */
+function boldify(s){
+  return s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+function renderInsight(text){
+  const out = document.getElementById('insightText');
+  const lines = (text || '').split('\n').map(l=>l.trim()).filter(Boolean);
+  let html = '<div class="insight">';
+  let i = 0;
+
+  if(lines.length){
+    html += `<div class="lead">${boldify(lines[0])}</div>`;
+    i = 1;
+  }
+
+  let openUl = false;
+  let insideIdea = false;
+
+  const closeList = () => {
+    if(openUl){ html += '</ul>'; openUl=false; }
+    if(insideIdea){ html += '</div>'; insideIdea=false; }
+  };
+
+  for(; i<lines.length; i++){
+    const l = lines[i];
+
+    if(/^Catatan:/i.test(l)){
+      closeList();
+      html += `<div class="note">${boldify(l)}</div>`;
+      continue;
+    }
+
+    const m = l.match(/^(\d+)\)\s+\*\*(.+?)\*\*/);
+    if(m){
+      closeList();
+      html += `<div class="idea"><div class="idea-title">${m[1]}. ${boldify(m[2])}</div>`;
+      html += `<ul>`;
+      openUl = true; insideIdea = true;
+      continue;
+    }
+
+    let b = l.match(/^•\s*(.+)$/) || l.match(/^-+\s*(.+)$/);
+    if(b){
+      if(!openUl){ html += '<ul>'; openUl=true; }
+      html += `<li>${boldify(b[1])}</li>`;
+      continue;
+    }
+
+    closeList();
+    html += `<div class="para">${boldify(l)}</div>`;
+  }
+  closeList();
+  html += '</div>';
+  out.innerHTML = html;
+}
+/* ======================================================= */
+
+async function showInsight(){
+  if(!currentPair) return;
+  const r = await fetch(`${API}/insight/${currentPair.m1}/${currentPair.m2}`);
+  const j = await r.json();
+  const box = document.getElementById('insightBox');
+  const title = document.getElementById('insightTitle');
+  title.textContent = 'Rule Insight' + holidayLine();
+  renderInsight(j.idea || 'Tidak ada insight.');
+  box.style.display = 'block';
+}
+
+async function showAIInsight(){
+  if(!currentPair) return;
+  const hz = document.getElementById('horizonSel').value || 'next_month';
+  const r = await fetch(`${API}/ai_insight/${currentPair.m1}/${currentPair.m2}?horizon=${hz}`);
+  const j = await r.json();
+  const box = document.getElementById('insightBox');
+  const title = document.getElementById('insightTitle');
+  title.textContent = `AI Insight (${hz.replace('_',' ')})` + holidayLine();
+  renderInsight(j.insight || 'AI insight belum tersedia.');
+  box.style.display = 'block';
+}
+
+/* ===== Tambahan fungsi baru untuk tabel AI Auto Insights ===== */
+async function loadAutoInsights(){
+  try{
+    const res = await fetch(`${API}/auto_insights`);
+    const data = await res.json();
+    const tb = document.querySelector('#tblAuto tbody');
+    tb.innerHTML = '';
+    (data||[]).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.m1_name}</td><td>${r.m2_name}</td><td>${r.season||'-'}</td><td>${r.insight||''}</td>`;
+      tb.appendChild(tr);
+    });
+  }catch(e){
+    console.error('loadAutoInsights error', e);
+  }
+}
+
+/* ====== GEO: loader sederhana (tidak mengubah flow lama) ====== */
+async function loadGeoRecs(){
+  const city = document.getElementById('citySel').value;
+  const tb = document.querySelector('#tblGeo tbody');
+  tb.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+  try{
+    const r = await fetch(`${API}/geo/recommendations?city=${encodeURIComponent(city)}&top=5`);
+    const data = await r.json();
+    tb.innerHTML = '';
+    (data || []).forEach((rec,i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i+1}</td>
+        <td>${rec.m1_name}</td>
+        <td>${rec.m2_name}</td>
+        <td>${Number(rec.geo_score ?? rec.score ?? 0).toFixed(4)}</td>
+        <td>${Number(rec.distance_km ?? 0).toFixed(1)}</td>
+        <td>${rec.m1_city || '-'}</td>`;
+      // klik baris geo juga buka Pair Detail yg sama
+     // tr.onclick = ()=> showDetail(rec.m1, rec.m1_name, rec.m2, rec.m2_name);
+     tr.onclick = ()=> showDetail(rec.m1,rec.m1_name,rec.m2,rec.m2_name);
+      tb.appendChild(tr);
+    });
+  }catch(e){
+    console.error('loadGeoRecs error', e);
+    tb.innerHTML = '<tr><td colspan="6">Gagal memuat data.</td></tr>';
+  }
+}
+
+document.getElementById('seasonSel').onchange = loadRecs;
+document.getElementById('downloadBtn').onclick = downloadCSV;
+document.getElementById('insightBtn').onclick = showInsight;      // rule-based
+document.getElementById('aiInsightBtn').onclick = showAIInsight;  // LLM-based
+document.getElementById('geoRefreshBtn').onclick = loadGeoRecs;
+
+(async function init(){
+  await loadSeasons();
+  await loadRecs();
+  await loadNextHoliday();
+  // Geo section manual (user klik Refresh)
+})();
+
+  </script>
+</body>
+</html>
