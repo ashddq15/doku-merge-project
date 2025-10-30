@@ -1023,16 +1023,19 @@ const form = document.getElementById('merge-chat-form');
 
 function addMsg(text, who='user') {
   const div = document.createElement('div');
-  div.className = who === 'user'
-    ? 'chat-row user'
-    : 'chat-row bot';
-  // bold markdown mini
-  div.innerHTML = text
+  div.className = who === 'user' ? 'chat-row user' : 'chat-row bot';
+  
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.innerHTML = text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g,'<br>');
+  
+  div.appendChild(bubble);
   body.appendChild(div);
   body.scrollTop = body.scrollHeight;
 }
+
 
 function addTyping() {
   const d = document.createElement('div');
