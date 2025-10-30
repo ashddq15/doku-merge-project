@@ -5,7 +5,7 @@
   <title>DOKU CMCI – Merchant Collaboration Intelligence</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
+  <style>
     /* ========== DOKU Design System ========== */
     :root {
       --doku-red: #E31E24;
@@ -755,13 +755,14 @@
     <aside class="sidebar">
       <div class="sidebar-logo">
         <div class="logo-box">
-          <img src="logodoku.png" alt="DOKU Logo">
-        </div>
+        <img src="logodoku.png" alt="DOKU Logo">
+      </div>
         <div class="logo-text">
-          <div class="logo-title">DOKU</div>
-          <div class="logo-subtitle">CMCI</div>
+        <div class="logo-title">DOKU</div>
+        <div class="logo-subtitle">DOKU</div>
         </div>
       </div>
+
 
       <nav class="sidebar-menu">
         <div class="menu-section">
@@ -829,162 +830,135 @@
           </p>
         </div>
 
-        <!-- Season Selector -->
-        <div class="card">
-          <div class="top">
-            <h3>Season Configuration</h3>
-            <div class="row">
-              <label class="muted">Season&nbsp;</label>
-              <select id="seasonSel">
-                <option value="auto">Auto (current)</option>
-                <option value="all">All (30d baseline)</option>
-              </select>
-              <span id="seasonBadge" class="pill"></span>
-            </div>
-          </div>
+        <!-- How to Use Section -->
+        <div class="how-to-use">
+          <h2>📖 How to Use This Dashboard</h2>
+          <ol>
+            <li><strong>Load Collaboration Data</strong>: Klik tombol <code>Load</code> pada tabel "Collaboration" untuk melihat merchant pairs dengan score tertinggi berdasarkan overlap user (Jaccard similarity).</li>
+            <li><strong>Seasonal Analysis</strong>: Ubah mode menjadi "Seasonal", pilih musim (Lebaran, Natal, Libur Sekolah), lalu klik <code>Load</code> untuk melihat collaboration patterns khusus di periode tersebut.</li>
+            <li><strong>View Merchant Details</strong>: Klik salah satu row pada tabel untuk melihat detail KPI masing-masing merchant (transaksi 30d, jumlah users, success rate).</li>
+            <li><strong>Geographic Analysis</strong>: Klik <code>Load Geo</code> untuk melihat merchant collaboration opportunities berdasarkan kedekatan geografis dan city distribution.</li>
+            <li><strong>AI Insight</strong>: Setelah memilih merchant pair, klik <code>Generate</code> pada panel "AI Insight" untuk mendapatkan rekomendasi kolaborasi powered by OpenAI.</li>
+            <li><strong>Chat AI Assistant</strong>: Klik tombol 💬 di pojok kanan bawah untuk bertanya tentang data collaboration, seasonal insights, atau rekomendasi strategi merchant.</li>
+          </ol>
         </div>
 
-        <!-- Recommendations Table -->
-        <div class="card">
-          <h3>Top Collaboration Recommendations</h3>
-          <table id="tbl">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Merchant 1</th>
-                <th>Merchant 2</th>
-                <th>
-                  Score
-                  <span class="tip">i</span>
-                  <div class="tooltip">
-                    <b>Score</b> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
-                    Di MVP ini nilainya = <i>Jaccard 30d</i>. Pada versi penuh, Score akan
-                    menggabungkan:<br/>• Overlap user (Jaccard)<br/>• Perbedaan jam puncak (seasonality)<br/>• Perbedaan channel (synergy)<br/>• Risiko kegagalan (fail risk).
-                  </div>
-                </th>
-                <th>
-                  Jaccard 30d
-                  <span class="tip">i</span>
-                  <div class="tooltip">
-                    <b>Jaccard 30d</b> mengukur irisan pengguna kedua merchant selama 30 hari:
-                    <br/><code>|A ∩ B| / (|A| + |B| − |A ∩ B|)</code><br/>
-                    Semakin besar nilainya, semakin banyak pengguna yang sama di kedua merchant.
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <!-- Detail Panel -->
+        <!-- Main Grid -->
         <div class="grid">
-          <div class="card">
-            <div class="top">
-              <h3 id="pairTitle">Pair Detail</h3>
-              <div id="tags"></div>
-            </div>
-
-            <div class="row" style="margin-bottom:12px">
-              <select id="horizonSel">
-                <option value="next_month">Next month</option>
-                <option value="next_week">Next week</option>
-              </select>
-              <button id="aiInsightBtn" class="btn" disabled>AI Insight</button>
-              <button id="insightBtn" class="btn" disabled>Rule Insight</button>
-              <button id="downloadBtn" class="btn" disabled>Download CSV</button>
-            </div>
-
-            <!-- Merchant Details -->
-            <div class="cols" id="detailCols" style="display:none">
-              <div class="block">
-                <div class="label">Merchant A</div>
-                <div class="kpi" id="aName">-</div>
-                <div class="label" style="margin-top:8px">Peak Hours (Top 3)</div>
-                <ul class="list" id="aHours"></ul>
-                <div class="label" style="margin-top:8px">Channel Share</div>
-                <ul class="list" id="aChannels"></ul>
-                <div class="label" style="margin-top:8px">Distribusi Jam (24)</div>
-                <div id="aSpark" class="spark"></div>
+          <!-- Left: Collaboration Table -->
+          <div>
+            <div class="card">
+              <div class="top">
+                <h3>
+                  Collaboration 
+                  <span class="tip">i</span>
+                  <span class="tooltip">
+                    <strong>Score</strong> adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+                    Di MVP ini nilainya = Jaccard 30d. Pada versi penuh, Score akan menggabungkan:
+                    • Overlap user (Jaccard) • Perbedaan jam puncak (seasonality) 
+                    • Perbedaan channel (synergy) • Risiko kegagalan (fail risk).
+                  </span>
+                </h3>
+                <div class="row">
+                  <label>Mode:</label>
+                  <select id="collab-mode">
+                    <option value="normal">Normal</option>
+                    <option value="seasonal">Seasonal</option>
+                  </select>
+                  <select id="season-picker" style="display:none">
+                    <option value="">-- Pick season --</option>
+                  </select>
+                  <button class="btn" id="collab-load">Load</button>
+                </div>
               </div>
-              <div class="block">
-                <div class="label">Merchant B</div>
-                <div class="kpi" id="bName">-</div>
-                <div class="label" style="margin-top:8px">Peak Hours (Top 3)</div>
-                <ul class="list" id="bHours"></ul>
-                <div class="label" style="margin-top:8px">Channel Share</div>
-                <ul class="list" id="bChannels"></ul>
-                <div class="label" style="margin-top:8px">Distribusi Jam (24)</div>
-                <div id="bSpark" class="spark"></div>
+              <table id="collab-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>
+                      Score
+                      <span class="tip">i</span>
+                      <span class="tooltip">
+                        Score adalah nilai gabungan untuk menentukan prioritas kolaborasi.
+                        Di MVP ini nilainya = Jaccard 30d. Pada versi penuh, Score akan menggabungkan:
+                        • Overlap user (Jaccard) • Perbedaan jam puncak (seasonality)
+                        • Perbedaan channel (synergy) • Risiko kegagalan (fail risk).
+                      </span>
+                    </th>
+                    <th>
+                      Jaccard 30d
+                      <span class="tip">i</span>
+                      <span class="tooltip">
+                        Jaccard 30d mengukur irisan pengguna kedua merchant selama 30 hari:
+                        <code>|A ∩ B| / (|A| + |B| − |A ∩ B|)</code>
+                        Semakin besar nilainya, semakin banyak pengguna yang sama di kedua merchant.
+                      </span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <!-- Seasonal Table (hidden by default) -->
+            <div class="card" id="seasonal-card" style="display:none; margin-top:20px">
+              <h3>Seasonal</h3>
+              <p class="muted">Seasonal mode menghitung overlap hanya di rentang tanggal musim tersebut.</p>
+              <table id="seasonal-table">
+                <thead>
+                  <tr>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>Season</th>
+                    <th>Insight</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <!-- Geo Table -->
+            <div class="card" style="margin-top:20px">
+              <div class="top">
+                <h3>Geographic</h3>
+                <button class="btn" id="geo-load">Load Geo</button>
+              </div>
+              <table id="geo-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Merchant 1</th>
+                    <th>Merchant 2</th>
+                    <th>Geo Score</th>
+                    <th>Distance (km)</th>
+                    <th>City</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right: Merchant Detail -->
+          <div>
+            <div class="card">
+              <h3 id="detail-title">Merchant Detail</h3>
+              <div id="detail-body">
+                <p class="muted">Click a row to see details</p>
               </div>
             </div>
 
-            <!-- Insight Box -->
-            <div id="insightBox" class="block" style="margin-top:12px;display:none">
-              <div id="insightTitle" class="label">Insight</div>
-              <div id="insightText">-</div>
+            <!-- AI Insight -->
+            <div class="card" style="margin-top:20px">
+              <div class="top">
+                <h3>AI Insight (Experimental)</h3>
+                <button class="btn" id="insight-btn" disabled>Generate</button>
+              </div>
+              <div id="insightBox" class="muted">Select a merchant pair first</div>
             </div>
           </div>
-
-          <div class="card">
-            <h3>How to Use</h3>
-            <ol>
-              <li>Pilih <b>Season</b> (Auto = season aktif; All = baseline 30 hari).</li>
-              <li>Klik baris rekomendasi → lihat detail & insight.</li>
-              <li>Gunakan <b>AI Insight</b> untuk ide kampanye berbasis data.</li>
-              <li>Tekan <b>Download CSV</b> untuk user A yang belum belanja di B.</li>
-            </ol>
-          </div>
-        </div>
-
-        <!-- AI Auto Insights -->
-        <div class="card">
-          <div class="top">
-            <h3>🧠 AI Auto Insights</h3>
-            <button class="btn" onclick="loadAutoInsights()">Refresh</button>
-          </div>
-          <table id="tblAuto">
-            <thead>
-              <tr>
-                <th>Merchant 1</th>
-                <th>Merchant 2</th>
-                <th>Season</th>
-                <th>Insight</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-
-        <!-- Geo Recommendations -->
-        <div class="card">
-          <div class="top">
-            <h3>📍 Geo-based Recommendations</h3>
-            <div class="row">
-              <label class="muted">City&nbsp;</label>
-              <select id="citySel">
-                <option value="Jakarta">Jakarta</option>
-                <option value="Bandung">Bandung</option>
-                <option value="Surabaya">Surabaya</option>
-                <option value="Medan">Medan</option>
-                <option value="Denpasar">Denpasar</option>
-              </select>
-              <button class="btn" id="geoRefreshBtn">Refresh</button>
-            </div>
-          </div>
-          <table id="tblGeo">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Merchant 1</th>
-                <th>Merchant 2</th>
-                <th>Geo Score</th>
-                <th>Distance (km)</th>
-                <th>City</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
         </div>
       </div>
     </main>
@@ -1012,7 +986,6 @@
   </div>
 
   <script>
-
   const btn   = document.getElementById('merge-chat-btn');
 const win   = document.getElementById('merge-chat-window');
 const body  = document.getElementById('chat-body');
@@ -1023,417 +996,251 @@ const form = document.getElementById('merge-chat-form');
 
 function addMsg(text, who='user') {
   const div = document.createElement('div');
-  div.className = who === 'user' ? 'chat-row user' : 'chat-row bot';
-  
-  const bubble = document.createElement('div');
-  bubble.className = 'chat-bubble';
-  bubble.innerHTML = text
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g,'<br>');
-  
-  div.appendChild(bubble);
+  div.className = who === 'user'
+    ? 'chat-row user'
+    : 'chat-row ai';
+  div.innerHTML = `<div class="chat-bubble">${text}</div>`;
   body.appendChild(div);
   body.scrollTop = body.scrollHeight;
 }
 
-
-function addTyping() {
-  const d = document.createElement('div');
-  d.className = 'chat-row bot typing';
-  d.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-  body.appendChild(d);
-  body.scrollTop = body.scrollHeight;
-  return d;
-}
-function addHints(hints) {
-  if (!hints || !hints.length) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'hint-wrap';
-  hints.forEach(h=>{
-    const b = document.createElement('button');
-    b.className = 'hint';
-    b.textContent = h;
-    b.onclick = ()=> {
-      // jika user pilih "pilih payment channel lain", minta ulang channel
-      if (h === 'pilih payment channel lain') {
-        ask('pilih channel');  // backend akan jawab dengan daftar channel periode aktif
-      } else {
-        input.value = h;
-        send.click();
-      }
-    };
-    wrap.appendChild(b);
-  });
-  body.appendChild(wrap);
-  body.scrollTop = body.scrollHeight;
-}
-// --- SID tetap per browser ---
- const MERGE_SID = (() => {
-    const k = 'merge_sid';
-    let v = localStorage.getItem(k);
-    if (!v) { v = crypto.randomUUID(); localStorage.setItem(k, v); }
-    return v;
-  })();
-
-  // Hindari double-call saat user spam klik/enter
-  let inflight = false;
-function getMergeSid() {
-    const k = 'merge_sid';
-    let v = localStorage.getItem(k);
-    if (!v) {
-      v = crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random();
-      localStorage.setItem(k, v);
-    }
-    return v;
+btn.addEventListener('click', () => {
+  win.classList.toggle('show');
+  if (win.classList.contains('show') && body.children.length===0) {
+    addMsg('Hello! Saya Merge AI. Tanyakan tentang kolaborasi merchant, seasonal insight, dll.', 'ai');
   }
-  async function ask(q) {
-    if (inflight) return;
-    inflight = true;
+});
 
-    addMsg(q, 'user');
-    const typing = addTyping();
+document.getElementById('chat-close-btn').addEventListener('click', () => {
+  win.classList.remove('show');
+});
 
-    try {
-      const r = await fetch('/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ sid: getMergeSid(), text: q })
-      });
-      const data = await r.json();
-
-      typing.remove();
-      addMsg(data.reply || '(tanpa balasan)', 'bot');
-
-      // Normalisasi hints/saran tombol dari server
-      const hints =
-        data.hints
-        || data.suggestions
-        || (Array.isArray(data.choices) ? data.choices.map(c => c.text || c) : []);
-      addHints(hints || []);
-    } catch (e) {
-      typing.remove();
-      addMsg('Maaf, jaringan lagi bermasalah. Coba lagi ya.', 'bot');
-    } finally {
-      inflight = false;
-    }
-  }
-
-  // Pastikan submit tidak double: enter & click tidak memanggil ask dua kali
-  
-
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const v = (input.value || '').trim();
-      if (v) ask(v);
-      input.value = '';
-    });
-  }
-  if (btn) {
-    btn.addEventListener('click', () => {
-      const v = (input.value || '').trim();
-      if (v) ask(v);
-      input.value = '';
-    });
-  }
-
-btn.onclick = ()=> win.style.display = (win.style.display==='none'?'flex':'none');
-document.getElementById('chat-close-btn').onclick = ()=> win.style.display = 'none';
-send.onclick = ()=> {
-  const q = (input.value||'').trim();
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = input.value.trim();
   if (!q) return;
-  input.value = '';
-  ask(q);
-};
-input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ send.click(); }});
+  addMsg(q, 'user');
+  input.value='';
+  send.disabled=true;
 
-// gaya kecil
-const css = document.createElement('style');
-css.textContent = `
-.chat-row{margin:8px 0; line-height:1.4}
-.chat-row.user{ text-align:right; }
-.chat-row.user{ color:#111 }
-.chat-row.bot{ color:#222 }
-.hint-wrap{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap }
-.hint{ background:#ffe2e6; border:1px solid #e11d48; color:#b10e31; border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer }
-.hint:hover{ background:#ffd4db }
-.typing .dot{ display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:#999; animation:b 1s infinite alternate }
-.typing .dot:nth-child(2){ animation-delay:.2s }
-.typing .dot:nth-child(3){ animation-delay:.4s }
-@keyframes b { from{opacity:.3; transform:translateY(0)} to{opacity:1; transform:translateY(-2px)} }
-`;
-document.head.appendChild(css);
-const API = location.origin.replace(/\/app$/, ''); // base API
-let NEXT_HOLIDAY = null;
-
-function percent(x){ return (Number(x||0)*100).toFixed(1) + '%' }
-function top3Hours(arr){
-  if(!arr || !arr.length) return []
-  const tmp = arr.map((v,i)=>({h:i,v:+v||0})).sort((a,b)=>b.v-a.v).slice(0,3);
-  return tmp.map(x=>`${x.h}:00 (${percent(x.v)})`);
-}
-function fillList(ul, items){
-  ul.innerHTML = ''; items.forEach(t=>{const li=document.createElement('li');li.textContent=t;ul.appendChild(li);});
-}
-function spark(container, arr){
-  container.innerHTML = '';
-  const max = Math.max(...arr.map(x=>+x||0), 0.0001);
-  arr.forEach(v=>{
-    const b=document.createElement('div'); b.className='bar on';
-    b.style.height = (8 + (v/max)*24)+'px';
-    container.appendChild(b);
-  });
-}
-function pills(meta){
-  const wrap = document.getElementById('tags');
-  wrap.innerHTML = '';
-  if(!meta) return;
-  const mk = (t, good=false)=>{const s=document.createElement('span');s.className='pill'+(good?' good':'');s.textContent=t;return s;}
-  wrap.appendChild(mk(`Score ${Number(meta.score||0).toFixed(4)}`, true));
-  wrap.appendChild(mk(`Jaccard ${Number(meta.jac||0).toFixed(4)}`));
-}
-
-async function loadSeasons(){
-  const res = await fetch(`${API}/seasons`);
-  const j = await res.json();
-  const sel = document.getElementById('seasonSel');
-  (j.seasons||[]).forEach(s=>{
-    const opt = document.createElement('option');
-    opt.value = `custom:${s.season_name}`;
-    opt.textContent = s.season_name;
-    sel.appendChild(opt);
-  });
-  const badge = document.getElementById('seasonBadge');
-  if (j.current){
-    badge.textContent = `Current: ${j.current.season_name} (${j.current.start_date} → ${j.current.end_date})`;
-    sel.value = 'auto';
-  } else {
-    badge.textContent = 'No current season';
-    sel.value = 'all';
-  }
-}
-
-async function loadNextHoliday(){
-  try{
-    const r = await fetch(`${API}/next_holiday`);
-    if(r.ok) NEXT_HOLIDAY = await r.json();
-    else NEXT_HOLIDAY = null;
-  }catch{ NEXT_HOLIDAY = null; }
-}
-function holidayLine(){
-  if(!NEXT_HOLIDAY) return '';
-  const d = NEXT_HOLIDAY;
-  return ` — Next holiday: ${d.holi_name} (${d.holi_date}) D-${d.days_left}`;
-}
-
-async function loadRecs(){
-  const sel = document.getElementById('seasonSel').value;
-  let url = `${API}/recommendations?top=5`;  
-  if (sel === 'auto') url += `&mode=auto`;
-  else if (sel === 'all') url += `&mode=all`;
-  else if (sel.startsWith('custom:')){
-    const name = encodeURIComponent(sel.split(':')[1]);
-    url += `&mode=custom&season=${name}`;
-  }
-  const r = await fetch(url);
-  const j = await r.json();
-  const data = j.rows || j || [];
-  const tb = document.querySelector('#tbl tbody');
-  tb.innerHTML = '';
-  data.forEach((rec,i)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td>${rec.m1_name}</td>
-      <td>${rec.m2_name}</td>
-      <td>${Number(rec.score).toFixed(4)}</td>
-      <td>${Number(rec.jaccard_30d).toFixed(4)}</td>`;
-    tr.onclick = ()=> showDetail(rec.m1, rec.m1_name, rec.m2, rec.m2_name);
-    tb.appendChild(tr);
-  });
-}
-
-let currentPair = null;
-
-async function showDetail(m1, m1n, m2, m2n) {
-  currentPair = {m1, m1n, m2, m2n};
-  document.getElementById('insightBox').style.display='none';
-  const res = await fetch(`${API}/pair/${m1}/${m2}/detail`);
-  const d = await res.json();
-
-  document.getElementById('pairTitle').innerText = `${d.m1.name} × ${d.m2.name}`;
-  pills({score:d.metrics.score, jac:d.metrics.jaccard_30d});
-
-  // isi kolom A
-  document.getElementById('aName').textContent = d.m1.name;
-  fillList(document.getElementById('aHours'), top3Hours(d.m1.hour_hist));
-  const aCh = Object.entries(d.m1.channel_share||{}).map(([k,v])=>`${k}: ${percent(v)}`);
-  fillList(document.getElementById('aChannels'), aCh);
-  spark(document.getElementById('aSpark'), (d.m1.hour_hist||[]).map(Number));
-
-  // isi kolom B
-  document.getElementById('bName').textContent = d.m2.name;
-  fillList(document.getElementById('bHours'), top3Hours(d.m2.hour_hist));
-  const bCh = Object.entries(d.m2.channel_share||{}).map(([k,v])=>`${k}: ${percent(v)}`);
-  fillList(document.getElementById('bChannels'), bCh);
-  spark(document.getElementById('bSpark'), (d.m2.hour_hist||[]).map(Number));
-
-  document.getElementById('detailCols').style.display='grid';
-  document.getElementById('downloadBtn').disabled = false;
-  document.getElementById('insightBtn').disabled = false;
-  document.getElementById('aiInsightBtn').disabled = false;
-}
-
-async function downloadCSV() {
-  if (!currentPair) return;
-  const res = await fetch(`${API}/audience?m1=${currentPair.m1}&m2=${currentPair.m2}&winA=30d&winB=90d`);
-  const j = await res.json();
-  const rows = ['user_hash', ...j.users].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([rows], {type:'text/csv'}));
-  a.download = `${currentPair.m1n || currentPair.m1}__to__${currentPair.m2n || currentPair.m2}_audience.csv`;
-  a.click();
-}
-
-/* ======== INSIGHT RENDERER (rapi & mudah dibaca) ======== */
-function boldify(s){
-  return s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-}
-function renderInsight(text){
-  const out = document.getElementById('insightText');
-  const lines = (text || '').split('\n').map(l=>l.trim()).filter(Boolean);
-  let html = '<div class="insight">';
-  let i = 0;
-
-  if(lines.length){
-    html += `<div class="lead">${boldify(lines[0])}</div>`;
-    i = 1;
-  }
-
-  let openUl = false;
-  let insideIdea = false;
-
-  const closeList = () => {
-    if(openUl){ html += '</ul>'; openUl=false; }
-    if(insideIdea){ html += '</div>'; insideIdea=false; }
-  };
-
-  for(; i<lines.length; i++){
-    const l = lines[i];
-
-    if(/^Catatan:/i.test(l)){
-      closeList();
-      html += `<div class="note">${boldify(l)}</div>`;
-      continue;
-    }
-
-    const m = l.match(/^(\d+)\)\s+\*\*(.+?)\*\*/);
-    if(m){
-      closeList();
-      html += `<div class="idea"><div class="idea-title">${m[1]}. ${boldify(m[2])}</div>`;
-      html += `<ul>`;
-      openUl = true; insideIdea = true;
-      continue;
-    }
-
-    let b = l.match(/^•\s*(.+)$/) || l.match(/^-+\s*(.+)$/);
-    if(b){
-      if(!openUl){ html += '<ul>'; openUl=true; }
-      html += `<li>${boldify(b[1])}</li>`;
-      continue;
-    }
-
-    closeList();
-    html += `<div class="para">${boldify(l)}</div>`;
-  }
-  closeList();
-  html += '</div>';
-  out.innerHTML = html;
-}
-/* ======================================================= */
-
-async function showInsight(){
-  if(!currentPair) return;
-  const r = await fetch(`${API}/insight/${currentPair.m1}/${currentPair.m2}`);
-  const j = await r.json();
-  const box = document.getElementById('insightBox');
-  const title = document.getElementById('insightTitle');
-  title.textContent = 'Rule Insight' + holidayLine();
-  renderInsight(j.idea || 'Tidak ada insight.');
-  box.style.display = 'block';
-}
-
-async function showAIInsight(){
-  if(!currentPair) return;
-  const hz = document.getElementById('horizonSel').value || 'next_month';
-  const r = await fetch(`${API}/ai_insight/${currentPair.m1}/${currentPair.m2}?horizon=${hz}`);
-  const j = await r.json();
-  const box = document.getElementById('insightBox');
-  const title = document.getElementById('insightTitle');
-  title.textContent = `AI Insight (${hz.replace('_',' ')})` + holidayLine();
-  renderInsight(j.insight || 'AI insight belum tersedia.');
-  box.style.display = 'block';
-}
-
-/* ===== Tambahan fungsi baru untuk tabel AI Auto Insights ===== */
-async function loadAutoInsights(){
-  try{
-    const res = await fetch(`${API}/auto_insights`);
+  try {
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message:q})
+    });
+    if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    const tb = document.querySelector('#tblAuto tbody');
-    tb.innerHTML = '';
-    (data||[]).forEach(r=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.m1_name}</td><td>${r.m2_name}</td><td>${r.season||'-'}</td><td>${r.insight||''}</td>`;
-      tb.appendChild(tr);
-    });
-  }catch(e){
-    console.error('loadAutoInsights error', e);
+    addMsg(data.reply, 'ai');
+  } catch(err) {
+    addMsg('Error: '+err.message, 'ai');
+  } finally {
+    send.disabled=false;
   }
-}
+});
 
-/* ====== GEO: loader sederhana (tidak mengubah flow lama) ====== */
-async function loadGeoRecs(){
-  const city = document.getElementById('citySel').value;
-  const tb = document.querySelector('#tblGeo tbody');
-  tb.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
-  try{
-    const r = await fetch(`${API}/geo/recommendations?city=${encodeURIComponent(city)}&top=5`);
-    const data = await r.json();
-    tb.innerHTML = '';
-    (data || []).forEach((rec,i)=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+// ============== Collab Table ==============
+const collabTable = document.getElementById('collab-table').getElementsByTagName('tbody')[0];
+const collabMode  = document.getElementById('collab-mode');
+const seasonPicker= document.getElementById('season-picker');
+const collabLoad  = document.getElementById('collab-load');
+const seasonalCard= document.getElementById('seasonal-card');
+const seasonalTable=document.getElementById('seasonal-table').getElementsByTagName('tbody')[0];
+
+let selectedPair = null;
+
+collabMode.addEventListener('change', () => {
+  const isSeasonal = collabMode.value === 'seasonal';
+  seasonPicker.style.display = isSeasonal ? 'inline-block':'none';
+});
+
+// Load seasons - FIXED
+fetch('/api/seasons').then(r=>r.json()).then(response=>{
+  const list = Array.isArray(response) ? response : (response.seasons || []);
+  list.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.season_id;
+    opt.textContent=`${s.season_name} (${s.start_date} to ${s.end_date})`;
+    seasonPicker.appendChild(opt);
+  });
+}).catch(err => console.error('Error loading seasons:', err));
+
+collabLoad.addEventListener('click', async ()=>{
+  const mode = collabMode.value;
+  collabTable.innerHTML='<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+  try {
+    if (mode==='normal') {
+      const res = await fetch('/api/collaboration/top');
+      const response = await res.json();
+      const data = Array.isArray(response) ? response : (response.rows || response.data || []);
+      collabTable.innerHTML='';
+      data.forEach((r,i)=>{
+        const tr = collabTable.insertRow();
+        tr.style.cursor='pointer';
+        tr.addEventListener('click', ()=> showDetail(r));
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.score.toFixed(3)}</td>
+          <td><span class="pill ${r.jaccard_30d>0.2?'good':''}">${r.jaccard_30d.toFixed(3)}</span></td>
+        `;
+      });
+      seasonalCard.style.display='none';
+    } else {
+      const sid = seasonPicker.value;
+      if (!sid) {
+        alert('Please pick a season first!');
+        collabTable.innerHTML='';
+        return;
+      }
+      const res = await fetch(`/api/collaboration/seasonal?season_id=${sid}`);
+      const response = await res.json();
+      const data = Array.isArray(response) ? response : (response.rows || response.data || []);
+      collabTable.innerHTML='';
+      seasonalTable.innerHTML='';
+      
+      data.forEach((r,i)=>{
+        const tr = collabTable.insertRow();
+        tr.style.cursor='pointer';
+        tr.addEventListener('click', ()=> showDetail(r));
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.score.toFixed(3)}</td>
+          <td><span class="pill ${r.jaccard_30d>0.2?'good':''}">${r.jaccard_30d.toFixed(3)}</span></td>
+        `;
+
+        const tr2 = seasonalTable.insertRow();
+        tr2.innerHTML=`
+          <td>${r.name_a}</td>
+          <td>${r.name_b}</td>
+          <td>${r.season_name}</td>
+          <td>${r.insight || '-'}</td>
+        `;
+      });
+      seasonalCard.style.display='block';
+    }
+  } catch(err){
+    collabTable.innerHTML=`<tr><td colspan="5" style="text-align:center; color:var(--doku-red)">Error: ${err.message}</td></tr>`;
+  }
+});
+
+// ============== Geo Table - FIXED ==============
+const geoTable = document.getElementById('geo-table').getElementsByTagName('tbody')[0];
+const geoLoad = document.getElementById('geo-load');
+
+geoLoad.addEventListener('click', async ()=>{
+  geoTable.innerHTML='<tr><td colspan="6" style="text-align:center">Loading...</td></tr>';
+  try {
+    const res = await fetch('/api/collaboration/geographic');
+    const response = await res.json();
+    const data = Array.isArray(response) ? response : (response.rows || response.data || []);
+    geoTable.innerHTML='';
+    data.forEach((r,i)=>{
+      const tr = geoTable.insertRow();
+      tr.style.cursor='pointer';
+      tr.addEventListener('click', ()=>showDetail(r));
+      tr.innerHTML=`
         <td>${i+1}</td>
-        <td>${rec.m1_name}</td>
-        <td>${rec.m2_name}</td>
-        <td>${Number(rec.geo_score ?? rec.score ?? 0).toFixed(4)}</td>
-        <td>${Number(rec.distance_km ?? 0).toFixed(1)}</td>
-        <td>${rec.m1_city || '-'}</td>`;
-      // klik baris geo juga buka Pair Detail yg sama
-     // tr.onclick = ()=> showDetail(rec.m1, rec.m1_name, rec.m2, rec.m2_name);
-     tr.onclick = ()=> showDetail(rec.m1,rec.m1_name,rec.m2,rec.m2_name);
-      tb.appendChild(tr);
+        <td>${r.name_a}</td>
+        <td>${r.name_b}</td>
+        <td>${r.geo_score.toFixed(3)}</td>
+        <td>${r.distance_km ? r.distance_km.toFixed(1) : '-'}</td>
+        <td>${r.city_a || r.city_b || '-'}</td>
+      `;
     });
-  }catch(e){
-    console.error('loadGeoRecs error', e);
-    tb.innerHTML = '<tr><td colspan="6">Gagal memuat data.</td></tr>';
+  } catch(err) {
+    geoTable.innerHTML=`<tr><td colspan="6" style="text-align:center; color:var(--doku-red)">Error: ${err.message}</td></tr>`;
+  }
+});
+
+// ============== Detail Panel ==============
+const detailTitle = document.getElementById('detail-title');
+const detailBody  = document.getElementById('detail-body');
+const insightBtn  = document.getElementById('insight-btn');
+const insightBox  = document.getElementById('insightBox');
+
+async function showDetail(row) {
+  selectedPair = row;
+  detailTitle.textContent = `${row.name_a || row.merchant_a} ⇄ ${row.name_b || row.merchant_b}`;
+  
+  detailBody.innerHTML='<p style="text-align:center; color:var(--doku-text-muted)">Loading...</p>';
+  insightBtn.disabled=false;
+
+  try {
+    const ma = row.merchant_a;
+    const mb = row.merchant_b;
+
+    const [resA, resB] = await Promise.all([
+      fetch(`/api/merchant/${ma}/kpi`),
+      fetch(`/api/merchant/${mb}/kpi`)
+    ]);
+    const kpiA = await resA.json();
+    const kpiB = await resB.json();
+
+    detailBody.innerHTML=`
+      <div class="cols">
+        <div class="block">
+          <div class="label">${row.name_a}</div>
+          <div class="kpi">ID: ${ma}</div>
+          <ul class="list">
+            <li>Txn 30d: ${kpiA.txn_30d}</li>
+            <li>Users 30d: ${kpiA.users_30d}</li>
+            <li>SR: ${(kpiA.sr*100).toFixed(1)}%</li>
+          </ul>
+          <div class="spark">
+            ${Array(12).fill(0).map((_, i)=>
+              `<div class="bar ${i%2===0?'on':''}"></div>`
+            ).join('')}
+          </div>
+        </div>
+        <div class="block">
+          <div class="label">${row.name_b}</div>
+          <div class="kpi">ID: ${mb}</div>
+          <ul class="list">
+            <li>Txn 30d: ${kpiB.txn_30d}</li>
+            <li>Users 30d: ${kpiB.users_30d}</li>
+            <li>SR: ${(kpiB.sr*100).toFixed(1)}%</li>
+          </ul>
+          <div class="spark">
+            ${Array(12).fill(0).map((_, i)=>
+              `<div class="bar ${i%3===0?'on':''}"></div>`
+            ).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  } catch(err) {
+    detailBody.innerHTML=`<p style="color:var(--doku-red)">Error: ${err.message}</p>`;
   }
 }
 
-document.getElementById('seasonSel').onchange = loadRecs;
-document.getElementById('downloadBtn').onclick = downloadCSV;
-document.getElementById('insightBtn').onclick = showInsight;      // rule-based
-document.getElementById('aiInsightBtn').onclick = showAIInsight;  // LLM-based
-document.getElementById('geoRefreshBtn').onclick = loadGeoRecs;
+// ============== AI Insight ==============
+insightBtn.addEventListener('click', async ()=>{
+  if (!selectedPair) return;
+  insightBtn.disabled=true;
+  insightBox.innerHTML='<p style="color:var(--doku-text-muted)">Generating AI insight...</p>';
 
-(async function init(){
-  await loadSeasons();
-  await loadRecs();
-  await loadNextHoliday();
-  // Geo section manual (user klik Refresh)
-})();
+  try {
+    const res = await fetch('/api/collaboration/insight', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(selectedPair)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    insightBox.innerHTML = `<div class="insight">${data.text}</div>`;
+  } catch(err) {
+    insightBox.innerHTML=`<p style="color:var(--doku-red)">Error: ${err.message}</p>`;
+  } finally {
+    insightBtn.disabled=false;
+  }
+});
 
+// Auto-load on page load
+collabLoad.click();
   </script>
 </body>
 </html>
